@@ -1,0 +1,27 @@
+{
+  "AAPL": {
+    "company_name": "Apple Inc.",
+    "ticker": "AAPL",
+    "sector": "Technology"
+  },
+  "MSFT": {
+    "company_name": "Microsoft Corporation",
+    "ticker": "MSFT",
+    "sector": "Technology"
+  },
+  "GOOGL": {
+    "company_name": "Alphabet Inc.",
+    "ticker": "GOOGL",
+    "sector": "Technology"
+  },
+  "TSLA": {
+    "company_name": "Tesla, Inc.",
+    "ticker": "TSLA",
+    "sector": "Automotive"
+  },
+  "NVDA": {
+    "company_name": "NVIDIA Corporation",
+    "ticker": "NVDA",
+    "sector": "Technology"
+  }
+}

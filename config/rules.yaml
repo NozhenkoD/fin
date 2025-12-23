@@ -1,0 +1,41 @@
+# Stock Screener Default Rules
+#
+# This file defines the default screening rules for filtering stocks.
+# You can modify these rules or create custom rule files.
+#
+# Rule Format:
+#   field: The stock metric to evaluate (price, volume, market_cap, change, etc.)
+#   operator: Comparison operator (>, <, ==, >=, <=, !=)
+#   value: Number to compare against, or indicator reference (e.g., SMA200)
+
+rules:
+  # Rule 1: Price change must be greater than +2%
+  - field: change
+    operator: '>='
+    value: 2.0
+
+  # Rule 2: Current price must be above 200-day SMA
+  - field: price
+    operator: '>'
+    value: SMA200
+
+#  # Rule 3: Market capitalization must be greater than $2 billion
+#  - field: market_cap
+#    operator: '>'
+#    value: 200000000  # 2 billion
+
+# Indicator Configuration
+# Define which technical indicators to calculate
+indicators:
+  # Simple Moving Averages (windows in days)
+  sma:
+    - 50
+    - 200
+
+  # Exponential Moving Averages (windows in days)
+  ema:
+    - 20
+
+  # Average Volume Configuration
+  avg_volume:
+    window: 14  # 14-day average volume

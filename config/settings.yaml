@@ -1,0 +1,21 @@
+# Stock Screener Application Settings
+
+# Data Fetching Configuration
+data:
+  # Period for historical data (e.g., 1mo, 3mo, 6mo, 1y, 2y, 5y, max)
+  # Note: For SMA200, you need at least 10 months of data (~200 trading days)
+  period: 1y
+
+  # Data interval (e.g., 1m, 5m, 15m, 30m, 1h, 1d, 1wk, 1mo)
+  interval: 1d
+
+# Display Configuration
+display:
+  # Show summary statistics after screening
+  show_summary: true
+
+  # Number formatting thresholds
+  number_format:
+    million_threshold: 1000000
+    billion_threshold: 1000000000
+    trillion_threshold: 1000000000000
