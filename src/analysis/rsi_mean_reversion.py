@@ -354,6 +354,7 @@ def run_analysis(ticker: str, cache_manager: CacheManager,
 
 def print_summary(results_df: pd.DataFrame, ticker: str,
                   rsi_threshold: int = 30, rsi_exit: int = 70,
+                  min_days_above: int = 15,
                   stop_loss_pct: float = -3.0, take_profit_pct: float = 5.0,
                   period: int = 10):
     """Print summary statistics for RSI mean reversion analysis."""
@@ -377,7 +378,7 @@ def print_summary(results_df: pd.DataFrame, ticker: str,
 
     # Settings
     print(f"\nSETTINGS")
-    print(f"  Min days above SMA200: 15")
+    print(f"  Min days above SMA200: {min_days_above}")
     print(f"  Stop-loss:             {stop_loss_pct:+.1f}%")
     print(f"  Take-profit:           {take_profit_pct:+.1f}%")
     print(f"  RSI exit threshold:    {rsi_exit}")
@@ -540,6 +541,7 @@ Examples:
                         results_df, ticker,
                         rsi_threshold=args.rsi_threshold,
                         rsi_exit=args.rsi_exit,
+                        min_days_above=args.min_days_above,
                         stop_loss_pct=args.stop_loss,
                         take_profit_pct=args.take_profit,
                         period=args.period
