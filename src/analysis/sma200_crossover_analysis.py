@@ -23,37 +23,6 @@ from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma
 
-#
-# def detect_sma200_crossovers(df: pd.DataFrame) -> List[int]:
-#     """
-#     Detect where price crosses above SMA200 from below.
-#
-#     Args:
-#         df: DataFrame with 'Close' and 'SMA200' columns
-#
-#     Returns:
-#         List of indices where crossover occurs
-#     """
-#     crossovers = []
-#
-#     # Need at least 201 rows (200 for SMA + 1 for comparison)
-#     if len(df) < 201:
-#         return crossovers
-#
-#     for i in range(200, len(df)):
-#         prev_open = df['Open'].iloc[i - 1]
-#         prev_close = df['Close'].iloc[i - 1]
-#         prev_sma200 = df['SMA200'].iloc[i - 1]
-#         curr_close = df['Close'].iloc[i]
-#         curr_sma200 = df['SMA200'].iloc[i]
-#
-#         # Check for crossover: was below, now above or at
-#         if pd.notna(prev_close) and pd.notna(prev_sma200) and pd.notna(curr_close) and pd.notna(curr_sma200):
-#             if prev_close < prev_sma200 and curr_close >= curr_sma200:
-#                 crossovers.append(i)
-#
-#     return crossovers
-
 
 def analyze_forward_days(df: pd.DataFrame, crossover_idx: int, period: int = 20,
                          stop_loss_pct: float = -5.0, take_profit_pct: float = 10.0) -> Optional[Dict]:
@@ -128,7 +97,26 @@ def analyze_forward_days(df: pd.DataFrame, crossover_idx: int, period: int = 20,
 def detect_sma200_crossovers(df, proximity_pct=0.01):
     """
     Detects when price moves from below SMA200 to opening/closing above it.
-    Returns integer positions (iloc indices).
+
+    This function identifies "clean" crossovers where price was clearly below
+    SMA200 and then crosses above it with the Open relatively close to the SMA.
+
+    Conditions required:
+    1. Previous close was below previous SMA200
+    2. Current open is above current SMA200
+    3. Current close is above current SMA200
+    4. Current open is within proximity_pct above the SMA200
+
+    The proximity filter (condition 4) helps avoid large gap-ups that may
+    indicate different market dynamics than a true SMA200 crossover breakout.
+
+    Args:
+        df: DataFrame with OHLCV and SMA200 columns
+        proximity_pct: Maximum percentage distance above SMA200 for Open
+                      (default: 0.01 = 1%). This filters out large gaps.
+
+    Returns:
+        List of integer indices where crossover occurs
     """
     # 1. Price was below SMA200 yesterday (Using capitalized 'Close')
     prev_close_below = df['Close'].shift(1) < df['SMA200'].shift(1)
@@ -139,8 +127,9 @@ def detect_sma200_crossovers(df, proximity_pct=0.01):
     # 3. Price closed above SMA200 today
     close_above = df['Close'] > df['SMA200']
 
-    # 4. "Really Close" - Open is within X% of the SMA200
+    # 4. Open is within proximity_pct above the SMA200 (filters out large gap-ups)
     # We use (Open / SMA) - 1 to get the percentage distance
+    # Example: If Open is 1% above SMA200, this will be 0.01
     is_close_to_sma = (df['Open'] / df['SMA200'] - 1) <= proximity_pct
 
     # Combine all conditions
@@ -256,8 +245,16 @@ def calculate_stop_loss_take_profit_outcome(
     Determine trade outcome using stop-loss and take-profit logic.
 
     Iterates day-by-day through the forward period, checking if price hits
-    stop-loss (using Low) or take-profit (using High) first. This simulates
-    realistic exits rather than just looking at end-of-period price.
+    stop-loss (using Low) or take-profit (using High) first. When both levels
+    are hit on the same day, uses bar structure analysis to determine which
+    was likely hit first (industry-standard approach for daily bar backtesting).
+
+    Bar Structure Heuristic:
+    - If Open is closer to Low than High → downward movement likely → SL first
+    - If Open is closer to High than Low → upward movement likely → TP first
+
+    This approach is used by professional backtesting platforms (Backtrader,
+    QuantConnect, etc.) when intraday data is unavailable.
 
     Args:
         df: DataFrame with OHLCV data
@@ -290,8 +287,11 @@ def calculate_stop_loss_take_profit_outcome(
         low_pct = ((row['Low'] - entry_price) / entry_price) * 100
         high_pct = ((row['High'] - entry_price) / entry_price) * 100
 
-        # Check stop-loss first (using Low of the day)
-        if low_pct <= stop_loss_pct:
+        sl_hit = low_pct <= stop_loss_pct
+        tp_hit = high_pct >= take_profit_pct
+
+        # Case 1: Only stop-loss hit
+        if sl_hit and not tp_hit:
             return {
                 'exit_type': 'stop_loss',
                 'exit_day': day_num,
@@ -300,8 +300,8 @@ def calculate_stop_loss_take_profit_outcome(
                 'is_winner': False
             }
 
-        # Check take-profit (using High of the day)
-        if high_pct >= take_profit_pct:
+        # Case 2: Only take-profit hit
+        if tp_hit and not sl_hit:
             return {
                 'exit_type': 'take_profit',
                 'exit_day': day_num,
@@ -309,6 +309,32 @@ def calculate_stop_loss_take_profit_outcome(
                 'exit_pct': take_profit_pct,
                 'is_winner': True
             }
+
+        # Case 3: BOTH hit on same day - use bar structure to determine order
+        if sl_hit and tp_hit:
+            # Calculate distances from Open to Low and High
+            open_price = row['Open']
+            distance_to_low = abs(open_price - row['Low'])
+            distance_to_high = abs(row['High'] - open_price)
+
+            # If Open is closer to Low, downward movement likely came first
+            if distance_to_low < distance_to_high:
+                return {
+                    'exit_type': 'stop_loss',
+                    'exit_day': day_num,
+                    'exit_price': entry_price * (1 + stop_loss_pct / 100),
+                    'exit_pct': stop_loss_pct,
+                    'is_winner': False
+                }
+            else:
+                # Open is closer to High, upward movement likely came first
+                return {
+                    'exit_type': 'take_profit',
+                    'exit_day': day_num,
+                    'exit_price': entry_price * (1 + take_profit_pct / 100),
+                    'exit_pct': take_profit_pct,
+                    'is_winner': True
+                }
 
     # Neither hit - use end-of-period price
     exit_price = forward_window['Close'].iloc[-1]
