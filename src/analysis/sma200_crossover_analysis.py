@@ -22,6 +22,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def analyze_forward_days(df: pd.DataFrame, crossover_idx: int, period: int = 20,
@@ -426,183 +427,6 @@ def run_analysis(ticker: str, cache_manager: CacheManager,
     return results_df[column_order]
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str,
-                  strategy: str = 'resistance_break',
-                  min_days: int = 15, stop_loss_pct: float = -5.0,
-                  take_profit_pct: float = 10.0, period: int = 20):
-    """
-    Print summary statistics for SMA200 analysis.
-
-    Args:
-        results_df: DataFrame with analysis results
-        ticker: Stock ticker symbol
-        strategy: Strategy used ('resistance_break' or 'support_bounce')
-        min_days: Minimum days above/below SMA200 filter
-        stop_loss_pct: Stop-loss threshold
-        take_profit_pct: Take-profit threshold
-        period: Forward analysis period
-    """
-    if results_df.empty:
-        print("\nNo results to summarize.")
-        return
-
-    print("\n" + "=" * 60)
-    print(f"SMA200 ANALYSIS - {ticker}")
-    print("=" * 60)
-
-    # Period
-    start_date = results_df['date'].min().date()
-    end_date = results_df['date'].max().date()
-    print(f"Period: {start_date} to {end_date}")
-
-    # Strategy info
-    strategy_name = "Resistance Break" if strategy == 'resistance_break' else "Support Bounce"
-    strategy_desc = "Price breaks above SMA200" if strategy == 'resistance_break' else "Price bounces off SMA200"
-    print(f"\nSTRATEGY: {strategy_name}")
-    print(f"  {strategy_desc}")
-
-    # Filter settings
-    print(f"\nFILTER SETTINGS")
-    if strategy == 'resistance_break':
-        print(f"  Min days below SMA200: {min_days}")
-    else:
-        print(f"  Min days above SMA200: {min_days}")
-    print(f"  Stop-loss:             {stop_loss_pct:+.1f}%")
-    print(f"  Take-profit:           {take_profit_pct:+.1f}%")
-    print(f"  Analysis period:        {period} days")
-
-    # Crossover events
-    print(f"\nCROSSOVER EVENTS")
-    print(f"  Total crossovers found: {len(results_df)}")
-
-    # Stop-loss/take-profit breakdown
-    sl_hits = results_df[results_df['exit_type'] == 'stop_loss']
-    tp_hits = results_df[results_df['exit_type'] == 'take_profit']
-    period_end = results_df[results_df['exit_type'] == 'period_end']
-
-    print(f"\nSTOP-LOSS / TAKE-PROFIT ANALYSIS")
-    print(f"  Stop-loss hits:    {len(sl_hits):3d}  ({len(sl_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Take-profit hits:  {len(tp_hits):3d}  ({len(tp_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Period end:        {len(period_end):3d}  ({len(period_end)/len(results_df)*100:.1f}%)")
-
-    # Win/loss metrics using is_winner column
-    winners = results_df[results_df['is_winner'] == True]
-    losers = results_df[results_df['is_winner'] == False]
-
-    print(f"\nWIN/LOSS METRICS (SL/TP Based)")
-    print(f"  Winners:  {len(winners):3d}  ({len(winners)/len(results_df)*100:.1f}%)")
-    print(f"  Losers:   {len(losers):3d}  ({len(losers)/len(results_df)*100:.1f}%)")
-    print(f"  Average exit day:  {results_df['exit_day'].mean():.1f} days")
-    print(f"  Average exit %:    {results_df['exit_pct'].mean():+.1f}%")
-
-    # Forward analysis (for reference)
-    print(f"\n{period}-DAY FORWARD ANALYSIS (for reference)")
-    print(f"  Average Min %:    {results_df['min_pct'].mean():+.1f}%")
-    print(f"  Average Max %:    {results_df['max_pct'].mean():+.1f}%")
-    print(f"  Average Last Day %: {results_df['last_day_pct'].mean():+.1f}%")
-
-    # Distribution by exit percentage
-    print(f"\nDISTRIBUTION (Exit %)")
-    bins = [
-        ('< -10%', results_df[results_df['exit_pct'] < -10]),
-        ('-10% to 0%', results_df[(results_df['exit_pct'] >= -10) & (results_df['exit_pct'] <= 0)]),
-        ('0% to +10%', results_df[(results_df['exit_pct'] > 0) & (results_df['exit_pct'] <= 10)]),
-        ('+10% to +20%', results_df[(results_df['exit_pct'] > 10) & (results_df['exit_pct'] <= 20)]),
-        ('> +20%', results_df[results_df['exit_pct'] > 20])
-    ]
-
-    for label, subset in bins:
-        count = len(subset)
-        pct = (count / len(results_df)) * 100
-        print(f"  {label:14s} {count:3d}  ({pct:.1f}%)")
-
-    # Dates of crossovers
-    print(f"\nDATES OF CROSSOVERS")
-    dates_str = ", ".join([d.strftime('%Y-%m-%d') for d in results_df['date'].head(10)])
-    if len(results_df) > 10:
-        dates_str += f", ... (+{len(results_df) - 10} more)"
-    print(f"  {dates_str}")
-
-    print("=" * 60 + "\n")
-
-
-def print_aggregate_summary(combined_df: pd.DataFrame, strategy: str = 'resistance_break'):
-    """
-    Print aggregate summary across all tickers.
-
-    Args:
-        combined_df: Combined DataFrame with results from all tickers
-        strategy: Strategy used
-    """
-    if combined_df.empty:
-        print("\nNo aggregate results to summarize.")
-        return
-
-    print("\n" + "=" * 80)
-    print("AGGREGATE SUMMARY - ALL TICKERS")
-    print("=" * 80)
-
-    strategy_name = "Resistance Break" if strategy == 'resistance_break' else "Support Bounce"
-    print(f"Strategy: {strategy_name}")
-    print(f"Total tickers analyzed: {combined_df['ticker'].nunique()}")
-    print(f"Total signals: {len(combined_df)}")
-
-    # Overall win/loss
-    winners = combined_df[combined_df['is_winner'] == True]
-    losers = combined_df[combined_df['is_winner'] == False]
-
-    print(f"\nOVERALL WIN/LOSS")
-    print(f"  Winners:  {len(winners):4d}  ({len(winners)/len(combined_df)*100:.1f}%)")
-    print(f"  Losers:   {len(losers):4d}  ({len(losers)/len(combined_df)*100:.1f}%)")
-    print(f"  Average exit day:  {combined_df['exit_day'].mean():.1f} days")
-    print(f"  Average exit %:    {combined_df['exit_pct'].mean():+.1f}%")
-
-    # Exit type breakdown
-    sl_hits = combined_df[combined_df['exit_type'] == 'stop_loss']
-    tp_hits = combined_df[combined_df['exit_type'] == 'take_profit']
-    period_end = combined_df[combined_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE BREAKDOWN")
-    print(f"  Stop-loss hits:    {len(sl_hits):4d}  ({len(sl_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Take-profit hits:  {len(tp_hits):4d}  ({len(tp_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Period end:        {len(period_end):4d}  ({len(period_end)/len(combined_df)*100:.1f}%)")
-
-    # Per-ticker summary
-    print(f"\nPER-TICKER SUMMARY (sorted by win rate)")
-    print("=" * 80)
-
-    ticker_stats = []
-    for ticker in combined_df['ticker'].unique():
-        ticker_df = combined_df[combined_df['ticker'] == ticker]
-        ticker_winners = ticker_df[ticker_df['is_winner'] == True]
-
-        stats = {
-            'ticker': ticker,
-            'signals': len(ticker_df),
-            'wins': len(ticker_winners),
-            'losses': len(ticker_df) - len(ticker_winners),
-            'win_rate': (len(ticker_winners) / len(ticker_df) * 100) if len(ticker_df) > 0 else 0,
-            'avg_exit_pct': ticker_df['exit_pct'].mean(),
-            'avg_exit_day': ticker_df['exit_day'].mean()
-        }
-        ticker_stats.append(stats)
-
-    # Sort by win rate descending
-    ticker_stats_df = pd.DataFrame(ticker_stats).sort_values('win_rate', ascending=False)
-
-    # Format for display
-    display_ticker_stats = ticker_stats_df.copy()
-    display_ticker_stats['win_rate'] = display_ticker_stats['win_rate'].apply(lambda x: f"{x:.1f}%")
-    display_ticker_stats['avg_exit_pct'] = display_ticker_stats['avg_exit_pct'].apply(lambda x: f"{x:+.1f}%")
-    display_ticker_stats['avg_exit_day'] = display_ticker_stats['avg_exit_day'].apply(lambda x: f"{x:.1f}")
-
-    # Rename columns for display
-    display_ticker_stats.columns = ['Ticker', 'Signals', 'Wins', 'Losses', 'Win Rate', 'Avg Exit %', 'Avg Exit Day']
-
-    print(display_ticker_stats.to_string(index=False))
-    print("=" * 80 + "\n")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -736,13 +560,19 @@ Examples:
                 if args.sp500:
                     print(f"✓ {len(results_df)} signals")
                 elif show_individual_summaries:
+                    strategy_name = "SMA200 Resistance Break" if args.strategy == 'resistance_break' else "SMA200 Support Bounce"
+                    strategy_desc = "Price breaks above SMA200" if args.strategy == 'resistance_break' else "Price bounces off SMA200"
                     print_summary(
-                        results_df, ticker,
-                        strategy=args.strategy,
-                        min_days=args.min_days,
-                        stop_loss_pct=args.stop_loss,
-                        take_profit_pct=args.take_profit,
-                        period=args.period
+                        results_df,
+                        strategy_name=strategy_name,
+                        ticker=ticker,
+                        strategy_description=strategy_desc,
+                        settings={
+                            'Min days': args.min_days,
+                            'Stop-loss': f"{args.stop_loss:+.1f}%",
+                            'Take-profit': f"{args.take_profit:+.1f}%",
+                            'Analysis period': f"{args.period} days"
+                        }
                     )
             else:
                 if args.sp500:
@@ -760,7 +590,8 @@ Examples:
 
         # Show aggregate summary for multiple tickers
         if len(tickers) > 1:
-            print_aggregate_summary(combined_df, strategy=args.strategy)
+            strategy_name = "SMA200 Resistance Break" if args.strategy == 'resistance_break' else "SMA200 Support Bounce"
+            print_aggregate_summary(combined_df, strategy_name=strategy_name)
 
         # Display detailed results table (limit for S&P 500)
         if not args.sp500 or len(combined_df) <= 100:

@@ -53,6 +53,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma, calculate_rsi, calculate_atr, calculate_bbands
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def detect_squeeze_breakout_signals(
@@ -387,96 +388,6 @@ def run_analysis(
     return results_df[available_cols]
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str, **kwargs):
-    """Print summary statistics."""
-    if results_df.empty:
-        print("\nNo results to summarize.")
-        return
-
-    print("\n" + "=" * 70)
-    print(f"BB SQUEEZE BREAKOUT ANALYSIS - {ticker}")
-    print("=" * 70)
-
-    start_date = results_df['date'].min().date()
-    end_date = results_df['date'].max().date()
-    print(f"Period: {start_date} to {end_date}")
-
-    print(f"\nSTRATEGY: Bollinger Band Squeeze Breakout")
-    print(f"  Entry: BB Width at {kwargs.get('squeeze_lookback', 20)}-day low + Upper band breakout")
-    print(f"  Exit:  Trailing {kwargs.get('trailing_stop_atr', 2.0):.1f}x ATR")
-
-    print(f"\nSIGNALS: {len(results_df)}")
-
-    # Exit breakdown
-    ts_exits = results_df[results_df['exit_type'] == 'trailing_stop']
-    mb_exits = results_df[results_df['exit_type'] == 'middle_band']
-    period_end = results_df[results_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE")
-    print(f"  Trailing stop: {len(ts_exits):3d}  ({len(ts_exits)/len(results_df)*100:.1f}%)")
-    print(f"  Middle band:   {len(mb_exits):3d}  ({len(mb_exits)/len(results_df)*100:.1f}%)")
-    print(f"  Period end:    {len(period_end):3d}  ({len(period_end)/len(results_df)*100:.1f}%)")
-
-    winners = results_df[results_df['is_winner'] == True]
-    losers = results_df[results_df['is_winner'] == False]
-
-    print(f"\nWIN/LOSS")
-    print(f"  Winners: {len(winners):3d}  ({len(winners)/len(results_df)*100:.1f}%)")
-    print(f"  Losers:  {len(losers):3d}  ({len(losers)/len(results_df)*100:.1f}%)")
-    print(f"  Avg exit %: {results_df['exit_pct'].mean():+.2f}%")
-    print(f"  Max gain avg: {results_df['max_gain_pct'].mean():+.2f}%")
-
-    print("=" * 70 + "\n")
-
-
-def print_aggregate_summary(combined_df: pd.DataFrame):
-    """Print aggregate summary."""
-    if combined_df.empty:
-        return
-
-    print("\n" + "=" * 80)
-    print("AGGREGATE SUMMARY - BB SQUEEZE BREAKOUT")
-    print("=" * 80)
-
-    print(f"Strategy: Bollinger Band Squeeze Breakout")
-    print(f"Tickers: {combined_df['ticker'].nunique()}")
-    print(f"Signals: {len(combined_df)}")
-
-    winners = combined_df[combined_df['is_winner'] == True]
-    losers = combined_df[combined_df['is_winner'] == False]
-
-    win_rate = len(winners) / len(combined_df) * 100
-    avg_win = winners['exit_pct'].mean() if len(winners) > 0 else 0
-    avg_loss = abs(losers['exit_pct'].mean()) if len(losers) > 0 else 1
-
-    total_gains = winners['exit_pct'].sum() if len(winners) > 0 else 0
-    total_losses = abs(losers['exit_pct'].sum()) if len(losers) > 0 else 1
-    profit_factor = total_gains / total_losses if total_losses > 0 else float('inf')
-
-    print(f"\nPERFORMANCE")
-    print(f"  Win Rate:      {win_rate:.2f}%")
-    print(f"  Avg Return:    {combined_df['exit_pct'].mean():+.2f}%")
-    print(f"  Avg Winner:    {avg_win:+.2f}%")
-    print(f"  Avg Loser:     {-avg_loss:+.2f}%")
-    print(f"  Profit Factor: {profit_factor:.2f}")
-    print(f"  Risk/Reward:   {avg_win/avg_loss:.2f}:1" if avg_loss > 0 else "  Risk/Reward:   N/A")
-
-    ts_exits = combined_df[combined_df['exit_type'] == 'trailing_stop']
-    mb_exits = combined_df[combined_df['exit_type'] == 'middle_band']
-    period_end = combined_df[combined_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT BREAKDOWN")
-    print(f"  Trailing stop: {len(ts_exits):4d}  ({len(ts_exits)/len(combined_df)*100:.1f}%)")
-    print(f"  Middle band:   {len(mb_exits):4d}  ({len(mb_exits)/len(combined_df)*100:.1f}%)")
-    print(f"  Period end:    {len(period_end):4d}  ({len(period_end)/len(combined_df)*100:.1f}%)")
-
-    print(f"\nSQUEEZE METRICS")
-    print(f"  Avg entry BBW: {combined_df['entry_bbw'].mean():.4f}")
-    print(f"  Avg volume ratio: {combined_df['volume_ratio'].mean():.2f}x")
-
-    print("=" * 80 + "\n")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -538,9 +449,18 @@ def main():
                     print(f"OK {len(results_df)}")
                 elif show_individual:
                     print_summary(
-                        results_df, ticker,
-                        squeeze_lookback=args.squeeze_lookback,
-                        trailing_stop_atr=args.trailing_stop_atr
+                        results_df,
+                        strategy_name="BB Squeeze Breakout",
+                        ticker=ticker,
+                        strategy_description=f"BB Width at {args.squeeze_lookback}-day low + upper band breakout",
+                        settings={
+                            'Squeeze lookback': f"{args.squeeze_lookback} days",
+                            'RSI threshold': f">{args.rsi_threshold}",
+                            'Volume multiplier': f"{args.volume_mult}x",
+                            'Trailing stop': f"{args.trailing_stop_atr}x ATR",
+                            'Middle band exit': 'enabled' if not args.no_middle_band_exit else 'disabled',
+                            'Max hold': f"{args.period} days"
+                        }
                     )
             else:
                 if args.sp500:
@@ -554,7 +474,7 @@ def main():
         combined_df = pd.concat(all_results, ignore_index=True)
 
         if len(tickers) > 1:
-            print_aggregate_summary(combined_df)
+            print_aggregate_summary(combined_df, strategy_name="BB Squeeze Breakout")
 
         if args.export:
             export_dir = os.path.dirname(args.export)

@@ -32,6 +32,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma, calculate_rsi
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def detect_rsi_oversold_signals(df: pd.DataFrame, rsi_threshold: int = 30,
@@ -352,115 +353,6 @@ def run_analysis(ticker: str, cache_manager: CacheManager,
     return results_df[column_order]
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str,
-                  rsi_threshold: int = 30, rsi_exit: int = 70,
-                  stop_loss_pct: float = -3.0, take_profit_pct: float = 5.0,
-                  period: int = 10):
-    """Print summary statistics for RSI mean reversion analysis."""
-    if results_df.empty:
-        print("\nNo results to summarize.")
-        return
-
-    print("\n" + "=" * 60)
-    print(f"RSI MEAN REVERSION ANALYSIS - {ticker}")
-    print("=" * 60)
-
-    # Period
-    start_date = results_df['date'].min().date()
-    end_date = results_df['date'].max().date()
-    print(f"Period: {start_date} to {end_date}")
-
-    # Strategy info
-    print(f"\nSTRATEGY: RSI Mean Reversion")
-    print(f"  Buy when: RSI < {rsi_threshold} (oversold) + price above SMA200")
-    print(f"  Exit when: RSI >= {rsi_exit} OR SL/TP hit")
-
-    # Settings
-    print(f"\nSETTINGS")
-    print(f"  Min days above SMA200: 15")
-    print(f"  Stop-loss:             {stop_loss_pct:+.1f}%")
-    print(f"  Take-profit:           {take_profit_pct:+.1f}%")
-    print(f"  RSI exit threshold:    {rsi_exit}")
-    print(f"  Max hold period:        {period} days")
-
-    # Signals
-    print(f"\nSIGNALS")
-    print(f"  Total signals found: {len(results_df)}")
-
-    # Exit type breakdown
-    sl_hits = results_df[results_df['exit_type'] == 'stop_loss']
-    tp_hits = results_df[results_df['exit_type'] == 'take_profit']
-    rsi_exits = results_df[results_df['exit_type'] == 'rsi_exit']
-    period_end = results_df[results_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE BREAKDOWN")
-    print(f"  Stop-loss hits:    {len(sl_hits):3d}  ({len(sl_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Take-profit hits:  {len(tp_hits):3d}  ({len(tp_hits)/len(results_df)*100:.1f}%)")
-    print(f"  RSI exits:         {len(rsi_exits):3d}  ({len(rsi_exits)/len(results_df)*100:.1f}%)")
-    print(f"  Period end:        {len(period_end):3d}  ({len(period_end)/len(results_df)*100:.1f}%)")
-
-    # Win/loss metrics
-    winners = results_df[results_df['is_winner'] == True]
-    losers = results_df[results_df['is_winner'] == False]
-
-    print(f"\nWIN/LOSS METRICS")
-    print(f"  Winners:  {len(winners):3d}  ({len(winners)/len(results_df)*100:.1f}%)")
-    print(f"  Losers:   {len(losers):3d}  ({len(losers)/len(results_df)*100:.1f}%)")
-    print(f"  Average exit day:  {results_df['exit_day'].mean():.1f} days")
-    print(f"  Average exit %:    {results_df['exit_pct'].mean():+.1f}%")
-
-    # Average RSI at entry
-    print(f"\nENTRY CHARACTERISTICS")
-    print(f"  Average entry RSI: {results_df['entry_rsi'].mean():.1f}")
-    print(f"  Min entry RSI:     {results_df['entry_rsi'].min():.1f}")
-    print(f"  Max entry RSI:     {results_df['entry_rsi'].max():.1f}")
-
-    print("=" * 60 + "\n")
-
-
-def print_aggregate_summary(combined_df: pd.DataFrame):
-    """Print aggregate summary across all tickers."""
-    if combined_df.empty:
-        print("\nNo aggregate results to summarize.")
-        return
-
-    print("\n" + "=" * 80)
-    print("AGGREGATE SUMMARY - ALL TICKERS")
-    print("=" * 80)
-
-    print(f"Strategy: RSI Mean Reversion")
-    print(f"Total tickers analyzed: {combined_df['ticker'].nunique()}")
-    print(f"Total signals: {len(combined_df)}")
-
-    # Overall win/loss
-    winners = combined_df[combined_df['is_winner'] == True]
-    losers = combined_df[combined_df['is_winner'] == False]
-
-    print(f"\nOVERALL WIN/LOSS")
-    print(f"  Winners:  {len(winners):4d}  ({len(winners)/len(combined_df)*100:.1f}%)")
-    print(f"  Losers:   {len(losers):4d}  ({len(losers)/len(combined_df)*100:.1f}%)")
-    print(f"  Average exit day:  {combined_df['exit_day'].mean():.1f} days")
-    print(f"  Average exit %:    {combined_df['exit_pct'].mean():+.1f}%")
-
-    # Exit type breakdown
-    sl_hits = combined_df[combined_df['exit_type'] == 'stop_loss']
-    tp_hits = combined_df[combined_df['exit_type'] == 'take_profit']
-    rsi_exits = combined_df[combined_df['exit_type'] == 'rsi_exit']
-    period_end = combined_df[combined_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE BREAKDOWN")
-    print(f"  Stop-loss hits:    {len(sl_hits):4d}  ({len(sl_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Take-profit hits:  {len(tp_hits):4d}  ({len(tp_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  RSI exits:         {len(rsi_exits):4d}  ({len(rsi_exits)/len(combined_df)*100:.1f}%)")
-    print(f"  Period end:        {len(period_end):4d}  ({len(period_end)/len(combined_df)*100:.1f}%)")
-
-    # Entry characteristics
-    print(f"\nENTRY CHARACTERISTICS")
-    print(f"  Average entry RSI: {combined_df['entry_rsi'].mean():.1f}")
-
-    print("=" * 80 + "\n")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -537,12 +429,17 @@ Examples:
                     print(f"✓ {len(results_df)} signals")
                 elif show_individual:
                     print_summary(
-                        results_df, ticker,
-                        rsi_threshold=args.rsi_threshold,
-                        rsi_exit=args.rsi_exit,
-                        stop_loss_pct=args.stop_loss,
-                        take_profit_pct=args.take_profit,
-                        period=args.period
+                        results_df,
+                        strategy_name="RSI Mean Reversion",
+                        ticker=ticker,
+                        strategy_description=f"Buy when RSI < {args.rsi_threshold} + above SMA200, exit RSI >= {args.rsi_exit} or SL/TP",
+                        settings={
+                            'RSI threshold': args.rsi_threshold,
+                            'RSI exit': args.rsi_exit,
+                            'Stop-loss': f"{args.stop_loss:+.1f}%",
+                            'Take-profit': f"{args.take_profit:+.1f}%",
+                            'Max hold': f"{args.period} days"
+                        }
                     )
             else:
                 if args.sp500:
@@ -559,7 +456,7 @@ Examples:
         combined_df = pd.concat(all_results, ignore_index=True)
 
         if len(tickers) > 1:
-            print_aggregate_summary(combined_df)
+            print_aggregate_summary(combined_df, strategy_name="RSI Mean Reversion")
 
         # Export if requested
         if args.export:

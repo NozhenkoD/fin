@@ -34,6 +34,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def detect_ma_pullback_signals(df: pd.DataFrame,
@@ -371,107 +372,6 @@ def run_analysis(ticker: str, cache_manager: CacheManager,
     return results_df[column_order]
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str,
-                  short_ma: int = 20, long_ma: int = 200,
-                  min_days_above: int = 20, volume_multiplier: float = 1.5,
-                  stop_loss_pct: float = -3.0, take_profit_pct: float = 6.0,
-                  period: int = 10):
-    """Print summary statistics for MA pullback analysis."""
-    if results_df.empty:
-        print("\nNo results to summarize.")
-        return
-
-    print("\n" + "=" * 60)
-    print(f"MA PULLBACK ANALYSIS - {ticker}")
-    print("=" * 60)
-
-    # Period
-    start_date = results_df['date'].min().date()
-    end_date = results_df['date'].max().date()
-    print(f"Period: {start_date} to {end_date}")
-
-    # Strategy info
-    print(f"\nSTRATEGY: Moving Average Pullback")
-    print(f"  Buy when: Price pulls back to SMA{short_ma} in SMA{long_ma} uptrend")
-    print(f"  Volume:   >{volume_multiplier}x average")
-
-    # Settings
-    print(f"\nSETTINGS")
-    print(f"  Min days above SMA{long_ma}: {min_days_above}")
-    print(f"  Volume multiplier:       {volume_multiplier}x")
-    print(f"  Stop-loss:               {stop_loss_pct:+.1f}%")
-    print(f"  Take-profit:             {take_profit_pct:+.1f}%")
-    print(f"  Max hold period:          {period} days")
-
-    # Signals
-    print(f"\nSIGNALS")
-    print(f"  Total signals found: {len(results_df)}")
-
-    # Exit type breakdown
-    sl_hits = results_df[results_df['exit_type'] == 'stop_loss']
-    tp_hits = results_df[results_df['exit_type'] == 'take_profit']
-    period_end = results_df[results_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE BREAKDOWN")
-    print(f"  Stop-loss hits:    {len(sl_hits):3d}  ({len(sl_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Take-profit hits:  {len(tp_hits):3d}  ({len(tp_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Period end:        {len(period_end):3d}  ({len(period_end)/len(results_df)*100:.1f}%)")
-
-    # Win/loss metrics
-    winners = results_df[results_df['is_winner'] == True]
-    losers = results_df[results_df['is_winner'] == False]
-
-    print(f"\nWIN/LOSS METRICS")
-    print(f"  Winners:  {len(winners):3d}  ({len(winners)/len(results_df)*100:.1f}%)")
-    print(f"  Losers:   {len(losers):3d}  ({len(losers)/len(results_df)*100:.1f}%)")
-    print(f"  Average exit day:  {results_df['exit_day'].mean():.1f} days")
-    print(f"  Average exit %:    {results_df['exit_pct'].mean():+.1f}%")
-
-    # Entry characteristics
-    print(f"\nENTRY CHARACTERISTICS")
-    print(f"  Avg distance from SMA{short_ma}:  {results_df['distance_from_sma20'].mean():+.2f}%")
-    print(f"  Avg distance from SMA{long_ma}: {results_df['distance_from_sma200'].mean():+.2f}%")
-
-    print("=" * 60 + "\n")
-
-
-def print_aggregate_summary(combined_df: pd.DataFrame):
-    """Print aggregate summary across all tickers."""
-    if combined_df.empty:
-        print("\nNo aggregate results to summarize.")
-        return
-
-    print("\n" + "=" * 80)
-    print("AGGREGATE SUMMARY - ALL TICKERS")
-    print("=" * 80)
-
-    print(f"Strategy: Moving Average Pullback")
-    print(f"Total tickers analyzed: {combined_df['ticker'].nunique()}")
-    print(f"Total signals: {len(combined_df)}")
-
-    # Overall win/loss
-    winners = combined_df[combined_df['is_winner'] == True]
-    losers = combined_df[combined_df['is_winner'] == False]
-
-    print(f"\nOVERALL WIN/LOSS")
-    print(f"  Winners:  {len(winners):4d}  ({len(winners)/len(combined_df)*100:.1f}%)")
-    print(f"  Losers:   {len(losers):4d}  ({len(losers)/len(combined_df)*100:.1f}%)")
-    print(f"  Average exit day:  {combined_df['exit_day'].mean():.1f} days")
-    print(f"  Average exit %:    {combined_df['exit_pct'].mean():+.1f}%")
-
-    # Exit type breakdown
-    sl_hits = combined_df[combined_df['exit_type'] == 'stop_loss']
-    tp_hits = combined_df[combined_df['exit_type'] == 'take_profit']
-    period_end = combined_df[combined_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE BREAKDOWN")
-    print(f"  Stop-loss hits:    {len(sl_hits):4d}  ({len(sl_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Take-profit hits:  {len(tp_hits):4d}  ({len(tp_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Period end:        {len(period_end):4d}  ({len(period_end)/len(combined_df)*100:.1f}%)")
-
-    print("=" * 80 + "\n")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -550,14 +450,18 @@ Examples:
                     print(f"✓ {len(results_df)} signals")
                 elif show_individual:
                     print_summary(
-                        results_df, ticker,
-                        short_ma=args.short_ma,
-                        long_ma=args.long_ma,
-                        min_days_above=args.min_days_above,
-                        volume_multiplier=args.volume_mult,
-                        stop_loss_pct=args.stop_loss,
-                        take_profit_pct=args.take_profit,
-                        period=args.period
+                        results_df,
+                        strategy_name="MA Pullback",
+                        ticker=ticker,
+                        strategy_description=f"Pullback to SMA{args.short_ma} in SMA{args.long_ma} uptrend + volume",
+                        settings={
+                            'Short MA': f"SMA{args.short_ma}",
+                            'Long MA': f"SMA{args.long_ma}",
+                            'Volume multiplier': f"{args.volume_mult}x",
+                            'Stop-loss': f"{args.stop_loss:+.1f}%",
+                            'Take-profit': f"{args.take_profit:+.1f}%",
+                            'Max hold': f"{args.period} days"
+                        }
                     )
             else:
                 if args.sp500:
@@ -574,7 +478,7 @@ Examples:
         combined_df = pd.concat(all_results, ignore_index=True)
 
         if len(tickers) > 1:
-            print_aggregate_summary(combined_df)
+            print_aggregate_summary(combined_df, strategy_name="MA Pullback")
 
         # Export if requested
         if args.export:

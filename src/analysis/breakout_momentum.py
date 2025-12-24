@@ -52,6 +52,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma, calculate_rsi
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def detect_breakout_signals(df: pd.DataFrame,
@@ -395,103 +396,6 @@ def run_analysis(ticker: str, cache_manager: CacheManager,
     return results_df[column_order]
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str,
-                  breakout_period: int = 20, volume_multiplier: float = 2.0,
-                  rsi_threshold: int = 60, min_days_above: int = 20,
-                  trailing_stop_pct: float = -8.0, take_profit_pct: float = 15.0,
-                  period: int = 30):
-    """Print summary statistics."""
-    if results_df.empty:
-        print("\nNo results to summarize.")
-        return
-
-    print("\n" + "=" * 70)
-    print(f"BREAKOUT + MOMENTUM ANALYSIS - {ticker}")
-    print("=" * 70)
-
-    start_date = results_df['date'].min().date()
-    end_date = results_df['date'].max().date()
-    print(f"Period: {start_date} to {end_date}")
-
-    print(f"\nSTRATEGY: Breakout + Momentum (Trend Following)")
-    print(f"  Entry: {breakout_period}-day high breakout + RSI > {rsi_threshold} + Volume > {volume_multiplier}x")
-    print(f"  Exit:  Trailing stop {trailing_stop_pct}% OR TP {take_profit_pct}%")
-
-    print(f"\nSETTINGS")
-    print(f"  Breakout period:    {breakout_period} days")
-    print(f"  Min days above 200: {min_days_above}")
-    print(f"  Trailing stop:      {trailing_stop_pct:.1f}%")
-    print(f"  Take-profit:        {take_profit_pct:.1f}%")
-    print(f"  Max hold:            {period} days")
-
-    print(f"\nSIGNALS")
-    print(f"  Total: {len(results_df)}")
-
-    # Exit breakdown
-    ts_hits = results_df[results_df['exit_type'] == 'trailing_stop']
-    tp_hits = results_df[results_df['exit_type'] == 'take_profit']
-    period_end = results_df[results_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE")
-    print(f"  Trailing stop: {len(ts_hits):3d}  ({len(ts_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Take-profit:   {len(tp_hits):3d}  ({len(tp_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Period end:    {len(period_end):3d}  ({len(period_end)/len(results_df)*100:.1f}%)")
-
-    # Win/loss
-    winners = results_df[results_df['is_winner'] == True]
-    losers = results_df[results_df['is_winner'] == False]
-
-    print(f"\nWIN/LOSS")
-    print(f"  Winners: {len(winners):3d}  ({len(winners)/len(results_df)*100:.1f}%)")
-    print(f"  Losers:  {len(losers):3d}  ({len(losers)/len(results_df)*100:.1f}%)")
-    print(f"  Avg exit day: {results_df['exit_day'].mean():.1f} days")
-    print(f"  Avg exit %:   {results_df['exit_pct'].mean():+.1f}%")
-
-    # Momentum metrics
-    print(f"\nMOMENTUM METRICS")
-    print(f"  Avg entry RSI:      {results_df['entry_rsi'].mean():.1f}")
-    print(f"  Avg volume ratio:   {results_df['volume_ratio'].mean():.2f}x")
-    print(f"  Avg max gain:       {results_df['max_gain_pct'].mean():+.1f}%")
-
-    print("=" * 70 + "\n")
-
-
-def print_aggregate_summary(combined_df: pd.DataFrame):
-    """Print aggregate summary."""
-    if combined_df.empty:
-        return
-
-    print("\n" + "=" * 80)
-    print("AGGREGATE SUMMARY - ALL TICKERS")
-    print("=" * 80)
-
-    print(f"Strategy: Breakout + Momentum")
-    print(f"Tickers: {combined_df['ticker'].nunique()}")
-    print(f"Signals: {len(combined_df)}")
-
-    winners = combined_df[combined_df['is_winner'] == True]
-    losers = combined_df[combined_df['is_winner'] == False]
-
-    print(f"\nOVERALL")
-    print(f"  Winners: {len(winners):4d}  ({len(winners)/len(combined_df)*100:.1f}%)")
-    print(f"  Losers:  {len(losers):4d}  ({len(losers)/len(combined_df)*100:.1f}%)")
-    print(f"  Avg exit day: {combined_df['exit_day'].mean():.1f} days")
-    print(f"  Avg exit %:   {combined_df['exit_pct'].mean():+.1f}%")
-    print(f"  Avg max gain: {combined_df['max_gain_pct'].mean():+.1f}%")
-
-    # Exit type breakdown
-    ts_hits = combined_df[combined_df['exit_type'] == 'trailing_stop']
-    tp_hits = combined_df[combined_df['exit_type'] == 'take_profit']
-    period_end = combined_df[combined_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT BREAKDOWN")
-    print(f"  Trailing stop: {len(ts_hits):4d}  ({len(ts_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Take-profit:   {len(tp_hits):4d}  ({len(tp_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Period end:    {len(period_end):4d}  ({len(period_end)/len(combined_df)*100:.1f}%)")
-
-    print("=" * 80 + "\n")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -554,14 +458,20 @@ def main():
                 if args.sp500:
                     print(f"✓ {len(results_df)}")
                 elif show_individual:
-                    print_summary(results_df, ticker,
-                                breakout_period=args.breakout_period,
-                                volume_multiplier=args.volume_mult,
-                                rsi_threshold=args.rsi_threshold,
-                                min_days_above=args.min_days_above,
-                                trailing_stop_pct=args.trailing_stop,
-                                take_profit_pct=args.take_profit,
-                                period=args.period)
+                    print_summary(
+                        results_df,
+                        strategy_name="Breakout Momentum",
+                        ticker=ticker,
+                        strategy_description=f"{args.breakout_period}-day high breakout + RSI>{args.rsi_threshold} + {args.volume_mult}x volume",
+                        settings={
+                            'Breakout period': f"{args.breakout_period} days",
+                            'RSI threshold': f">{args.rsi_threshold}",
+                            'Volume multiplier': f"{args.volume_mult}x",
+                            'Trailing stop': f"{args.trailing_stop:.1f}%",
+                            'Take-profit': f"{args.take_profit:.1f}%",
+                            'Max hold': f"{args.period} days"
+                        }
+                    )
             else:
                 if args.sp500:
                     print("✗")
@@ -575,7 +485,7 @@ def main():
         combined_df = pd.concat(all_results, ignore_index=True)
 
         if len(tickers) > 1:
-            print_aggregate_summary(combined_df)
+            print_aggregate_summary(combined_df, strategy_name="Breakout Momentum")
 
         if args.export:
             export_dir = os.path.dirname(args.export)
