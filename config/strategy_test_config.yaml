@@ -1,0 +1,285 @@
+# Strategy Testing Configuration
+# This file defines multiple parameter sets to test for each strategy
+# Run with: python -m src.analysis.batch_test --config config/strategy_test_config.yaml
+
+# Each strategy can have multiple parameter sets
+# Results will be saved as CSV files and automatically compared
+
+strategies:
+  # ============================================
+  # RSI Mean Reversion
+  # ============================================
+  rsi_mean_reversion:
+    enabled: true
+    script: "src.analysis.rsi_mean_reversion"
+
+    # Test different parameter combinations
+    parameter_sets:
+      # Original (poor performance)
+      - name: "RSI_original"
+        min_days_above: 5
+        rsi_threshold: 30
+        rsi_exit: 70
+        stop_loss: -3.0
+        take_profit: 5.0
+        period: 10
+
+      # Stricter filters
+      - name: "RSI_strict"
+        min_days_above: 30
+        rsi_threshold: 25
+        rsi_exit: 65
+        stop_loss: -4.0
+        take_profit: 6.0
+        period: 15
+
+      # Wider stops
+      - name: "RSI_wide_stops"
+        min_days_above: 15
+        rsi_threshold: 30
+        rsi_exit: 70
+        stop_loss: -7.0
+        take_profit: 4.0
+        period: 20
+
+      # No stop loss
+      - name: "RSI_no_sl"
+        min_days_above: 20
+        rsi_threshold: 30
+        rsi_exit: 70
+        stop_loss: -100.0  # Effectively no SL
+        take_profit: 5.0
+        period: 15
+
+      # Extreme oversold
+      - name: "RSI_extreme"
+        min_days_above: 15
+        rsi_threshold: 20
+        rsi_exit: 60
+        stop_loss: -5.0
+        take_profit: 7.0
+        period: 20
+
+      # Quick scalp
+      - name: "RSI_quick"
+        min_days_above: 10
+        rsi_threshold: 35
+        rsi_exit: 55
+        stop_loss: -2.0
+        take_profit: 3.0
+        period: 5
+
+  # ============================================
+  # Moving Average Pullback
+  # ============================================
+  ma_pullback:
+    enabled: true
+    script: "src.analysis.ma_pullback"
+
+    parameter_sets:
+      # Original (poor)
+      - name: "MA_original"
+        short_ma: 20
+        long_ma: 200
+        volume_mult: 1.5
+        min_days_above: 20
+        stop_loss: -3.0
+        take_profit: 6.0
+        period: 10
+
+      # Wider stops
+      - name: "MA_wide_stops"
+        short_ma: 20
+        long_ma: 200
+        volume_mult: 1.5
+        min_days_above: 20
+        stop_loss: -6.0
+        take_profit: 4.0
+        period: 15
+
+      # Higher volume filter
+      - name: "MA_high_volume"
+        short_ma: 20
+        long_ma: 200
+        volume_mult: 2.5
+        min_days_above: 30
+        stop_loss: -5.0
+        take_profit: 5.0
+        period: 15
+
+      # Shorter MA
+      - name: "MA_10day"
+        short_ma: 10
+        long_ma: 200
+        volume_mult: 2.0
+        min_days_above: 20
+        stop_loss: -4.0
+        take_profit: 5.0
+        period: 12
+
+      # Longer MA (50-day pullback)
+      - name: "MA_50day"
+        short_ma: 50
+        long_ma: 200
+        volume_mult: 1.5
+        min_days_above: 30
+        stop_loss: -7.0
+        take_profit: 8.0
+        period: 20
+
+      # Asymmetric risk/reward
+      - name: "MA_asymmetric"
+        short_ma: 20
+        long_ma: 200
+        volume_mult: 2.0
+        min_days_above: 20
+        stop_loss: -8.0
+        take_profit: 4.0
+        period: 15
+
+  # ============================================
+  # Triple Filter
+  # ============================================
+  triple_filter:
+    enabled: true
+    script: "src.analysis.triple_filter"
+
+    parameter_sets:
+      # Original
+      - name: "Triple_original"
+        rsi_threshold: 40
+        rsi_exit: 60
+        short_ma: 20
+        long_ma: 200
+        volume_mult: 1.5
+        min_days_above: 20
+        stop_loss: -3.0
+        take_profit: 6.0
+        period: 10
+
+      # Very strict
+      - name: "Triple_strict"
+        rsi_threshold: 30
+        rsi_exit: 65
+        short_ma: 20
+        long_ma: 200
+        volume_mult: 2.5
+        min_days_above: 40
+        stop_loss: -5.0
+        take_profit: 7.0
+        period: 20
+
+      # Wider stops
+      - name: "Triple_wide"
+        rsi_threshold: 35
+        rsi_exit: 60
+        short_ma: 20
+        long_ma: 200
+        volume_mult: 2.0
+        min_days_above: 20
+        stop_loss: -7.0
+        take_profit: 5.0
+        period: 15
+
+      # Quick exit
+      - name: "Triple_quick"
+        rsi_threshold: 45
+        rsi_exit: 55
+        short_ma: 10
+        long_ma: 200
+        volume_mult: 2.0
+        min_days_above: 15
+        stop_loss: -3.0
+        take_profit: 4.0
+        period: 7
+
+  # ============================================
+  # Breakout Momentum
+  # ============================================
+  breakout_momentum:
+    enabled: true
+    script: "src.analysis.breakout_momentum"
+
+    parameter_sets:
+      # Original
+      - name: "Breakout_original"
+        breakout_period: 20
+        volume_mult: 2.0
+        rsi_threshold: 60
+        min_days_above: 20
+        trailing_stop: -8.0
+        take_profit: 15.0
+        period: 30
+
+      # Tighter trailing stop
+      - name: "Breakout_tight_trail"
+        breakout_period: 20
+        volume_mult: 2.0
+        rsi_threshold: 60
+        min_days_above: 20
+        trailing_stop: -5.0
+        take_profit: 10.0
+        period: 30
+
+      # Wider trailing stop
+      - name: "Breakout_wide_trail"
+        breakout_period: 20
+        volume_mult: 2.0
+        rsi_threshold: 60
+        min_days_above: 20
+        trailing_stop: -12.0
+        take_profit: 20.0
+        period: 45
+
+      # Shorter breakout period
+      - name: "Breakout_10day"
+        breakout_period: 10
+        volume_mult: 2.5
+        rsi_threshold: 65
+        min_days_above: 15
+        trailing_stop: -6.0
+        take_profit: 12.0
+        period: 25
+
+      # Longer breakout (52-week high)
+      - name: "Breakout_52week"
+        breakout_period: 252
+        volume_mult: 2.0
+        rsi_threshold: 60
+        min_days_above: 30
+        trailing_stop: -10.0
+        take_profit: 25.0
+        period: 60
+
+      # Lower RSI threshold
+      - name: "Breakout_low_rsi"
+        breakout_period: 20
+        volume_mult: 2.5
+        rsi_threshold: 50
+        min_days_above: 20
+        trailing_stop: -8.0
+        take_profit: 12.0
+        period: 30
+
+      # Extreme volume
+      - name: "Breakout_extreme_vol"
+        breakout_period: 20
+        volume_mult: 3.0
+        rsi_threshold: 65
+        min_days_above: 30
+        trailing_stop: -7.0
+        take_profit: 15.0
+        period: 30
+
+# Output settings
+output:
+  results_dir: "results/batch"
+  comparison_file: "results/batch/comparison_all.txt"
+  top_n_strategies: 10  # Show top 10 best performers
+
+# Execution settings
+execution:
+  run_sp500: true  # If false, will only run on test tickers
+  test_tickers: ["AAPL", "MSFT", "GOOGL"]  # Used if run_sp500 is false
+  cache_dir: "data/cache/ohlcv"
+  parallel: false  # Set to true for parallel execution (faster but more CPU)
