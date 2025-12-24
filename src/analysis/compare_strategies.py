@@ -168,7 +168,7 @@ def print_comparison_table(strategies: Dict[str, pd.DataFrame]):
             if value == float('inf'):
                 print(f"{'∞':>25}", end='')
             else:
-                print(f"{value:{fmt}s}".rjust(25), end='')
+                print(f"{value:{fmt}}".rjust(25), end='')
         print()
 
     # Print exit type distribution
