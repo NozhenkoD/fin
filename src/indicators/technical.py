@@ -1,12 +1,12 @@
 """
-Technical Indicators using pandas_ta
+Technical Indicators
 
 Provides a clean interface to technical indicators with consistent API.
-Uses pandas_ta library for robust, well-tested implementations.
+Uses pure pandas/numpy for robust, well-tested implementations.
 """
 
 import pandas as pd
-import pandas_ta as ta
+import numpy as np
 
 
 # ============================================
@@ -15,7 +15,7 @@ import pandas_ta as ta
 
 def calculate_sma(df: pd.DataFrame, window: int, price_col: str = 'Close') -> pd.Series:
     """
-    Calculate Simple Moving Average using pandas_ta.
+    Calculate Simple Moving Average.
 
     Args:
         df: DataFrame with OHLCV data
@@ -28,12 +28,12 @@ def calculate_sma(df: pd.DataFrame, window: int, price_col: str = 'Close') -> pd
     if df.empty or len(df) < window:
         return pd.Series(dtype=float)
 
-    return ta.sma(df[price_col], length=window)
+    return df[price_col].rolling(window=window).mean()
 
 
 def calculate_ema(df: pd.DataFrame, window: int, price_col: str = 'Close') -> pd.Series:
     """
-    Calculate Exponential Moving Average using pandas_ta.
+    Calculate Exponential Moving Average.
 
     Args:
         df: DataFrame with OHLCV data
@@ -46,7 +46,7 @@ def calculate_ema(df: pd.DataFrame, window: int, price_col: str = 'Close') -> pd
     if df.empty or len(df) < window:
         return pd.Series(dtype=float)
 
-    return ta.ema(df[price_col], length=window)
+    return df[price_col].ewm(span=window, adjust=False).mean()
 
 
 # ============================================
@@ -69,10 +69,25 @@ def calculate_rsi(df: pd.DataFrame, window: int = 14, price_col: str = 'Close') 
     Returns:
         Series containing RSI values
     """
-    if df.empty or len(df) < window:
+    if df.empty or len(df) < window + 1:
         return pd.Series(dtype=float)
 
-    return ta.rsi(df[price_col], length=window)
+    # Calculate price changes
+    delta = df[price_col].diff()
+
+    # Separate gains and losses
+    gains = delta.where(delta > 0, 0.0)
+    losses = -delta.where(delta < 0, 0.0)
+
+    # Calculate average gain and average loss using EMA
+    avg_gain = gains.ewm(span=window, adjust=False).mean()
+    avg_loss = losses.ewm(span=window, adjust=False).mean()
+
+    # Calculate RS and RSI
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    return rsi
 
 
 def calculate_macd(df: pd.DataFrame, price_col: str = 'Close',
@@ -98,7 +113,24 @@ def calculate_macd(df: pd.DataFrame, price_col: str = 'Close',
     if df.empty:
         return pd.DataFrame()
 
-    return ta.macd(df[price_col], fast=fast, slow=slow, signal=signal)
+    # Calculate EMAs
+    ema_fast = df[price_col].ewm(span=fast, adjust=False).mean()
+    ema_slow = df[price_col].ewm(span=slow, adjust=False).mean()
+
+    # MACD line = fast EMA - slow EMA
+    macd_line = ema_fast - ema_slow
+
+    # Signal line = EMA of MACD line
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+
+    # Histogram = MACD line - signal line
+    histogram = macd_line - signal_line
+
+    return pd.DataFrame({
+        f'MACD_{fast}_{slow}_{signal}': macd_line,
+        f'MACDh_{fast}_{slow}_{signal}': histogram,
+        f'MACDs_{fast}_{slow}_{signal}': signal_line
+    })
 
 
 # ============================================
@@ -132,7 +164,29 @@ def calculate_bbands(df: pd.DataFrame, window: int = 20, std_dev: float = 2.0,
     if df.empty or len(df) < window:
         return pd.DataFrame()
 
-    return ta.bbands(df[price_col], length=window, std=std_dev)
+    # Calculate middle band (SMA)
+    middle_band = df[price_col].rolling(window=window).mean()
+
+    # Calculate standard deviation
+    rolling_std = df[price_col].rolling(window=window).std()
+
+    # Calculate upper and lower bands
+    upper_band = middle_band + (rolling_std * std_dev)
+    lower_band = middle_band - (rolling_std * std_dev)
+
+    # Calculate bandwidth
+    bandwidth = (upper_band - lower_band) / middle_band
+
+    # Calculate %B (position within bands)
+    percent_b = (df[price_col] - lower_band) / (upper_band - lower_band)
+
+    return pd.DataFrame({
+        f'BBL_{window}_{std_dev}': lower_band,
+        f'BBM_{window}_{std_dev}': middle_band,
+        f'BBU_{window}_{std_dev}': upper_band,
+        f'BBB_{window}_{std_dev}': bandwidth,
+        f'BBP_{window}_{std_dev}': percent_b
+    })
 
 
 def calculate_atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
@@ -151,7 +205,17 @@ def calculate_atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
     if df.empty or len(df) < window:
         return pd.Series(dtype=float)
 
-    return ta.atr(df['High'], df['Low'], df['Close'], length=window)
+    # Calculate True Range
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+
+    true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+
+    # Calculate ATR as EMA of True Range
+    atr = true_range.ewm(span=window, adjust=False).mean()
+
+    return atr
 
 
 # ============================================
@@ -180,7 +244,40 @@ def calculate_adx(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
     if df.empty or len(df) < window:
         return pd.DataFrame()
 
-    return ta.adx(df['High'], df['Low'], df['Close'], length=window)
+    # Calculate directional movement
+    high_diff = df['High'].diff()
+    low_diff = -df['Low'].diff()
+
+    # Calculate +DM and -DM
+    plus_dm = np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0.0)
+    minus_dm = np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0.0)
+
+    # Calculate True Range
+    high_low = df['High'] - df['Low']
+    high_close = np.abs(df['High'] - df['Close'].shift())
+    low_close = np.abs(df['Low'] - df['Close'].shift())
+    true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+
+    # Calculate smoothed values using EMA
+    plus_dm_smooth = pd.Series(plus_dm).ewm(span=window, adjust=False).mean()
+    minus_dm_smooth = pd.Series(minus_dm).ewm(span=window, adjust=False).mean()
+    tr_smooth = true_range.ewm(span=window, adjust=False).mean()
+
+    # Calculate +DI and -DI
+    plus_di = 100 * plus_dm_smooth / tr_smooth
+    minus_di = 100 * minus_dm_smooth / tr_smooth
+
+    # Calculate DX
+    dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di)
+
+    # Calculate ADX as EMA of DX
+    adx = dx.ewm(span=window, adjust=False).mean()
+
+    return pd.DataFrame({
+        f'ADX_{window}': adx,
+        f'DMP_{window}': plus_di,
+        f'DMN_{window}': minus_di
+    })
 
 
 # ============================================
