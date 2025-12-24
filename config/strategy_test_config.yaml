@@ -271,11 +271,184 @@ strategies:
         take_profit_pct: 15.0
         period: 30
 
+  # ============================================
+  # ATR Mean Reversion (Volatility Adaptive)
+  # ============================================
+  atr_mean_reversion:
+    enabled: true
+    script: "src.analysis.atr_mean_reversion"
+
+    parameter_sets:
+      # Standard 2:3 R:R
+      - name: "ATR_standard"
+        rsi_threshold: 30
+        rsi_exit: 65
+        min_days_above: 15
+        adx_threshold: 20
+        require_adx: true
+        atr_multiplier_sl: 2.0
+        atr_multiplier_tp: 3.0
+        period: 15
+
+      # Wider R:R (1.5:3)
+      - name: "ATR_wide_rr"
+        rsi_threshold: 30
+        rsi_exit: 65
+        min_days_above: 15
+        adx_threshold: 20
+        require_adx: true
+        atr_multiplier_sl: 1.5
+        atr_multiplier_tp: 3.0
+        period: 15
+
+      # Tighter stops (1.5:2)
+      - name: "ATR_tight"
+        rsi_threshold: 30
+        rsi_exit: 65
+        min_days_above: 15
+        adx_threshold: 20
+        require_adx: true
+        atr_multiplier_sl: 1.5
+        atr_multiplier_tp: 2.0
+        period: 12
+
+      # No ADX filter
+      - name: "ATR_no_adx"
+        rsi_threshold: 30
+        rsi_exit: 65
+        min_days_above: 15
+        adx_threshold: 20
+        require_adx: false
+        atr_multiplier_sl: 2.0
+        atr_multiplier_tp: 3.0
+        period: 15
+
+      # Extreme oversold
+      - name: "ATR_extreme"
+        rsi_threshold: 20
+        rsi_exit: 60
+        min_days_above: 20
+        adx_threshold: 25
+        require_adx: true
+        atr_multiplier_sl: 2.5
+        atr_multiplier_tp: 4.0
+        period: 20
+
+  # ============================================
+  # Bollinger Band Squeeze Breakout
+  # ============================================
+  bb_squeeze_breakout:
+    enabled: true
+    script: "src.analysis.bb_squeeze_breakout"
+
+    parameter_sets:
+      # Standard squeeze
+      - name: "BBSqueeze_standard"
+        squeeze_lookback: 20
+        volume_multiplier: 1.5
+        rsi_threshold: 50
+        min_days_above: 15
+        trailing_stop_atr: 2.0
+        use_middle_band_exit: true
+        period: 20
+
+      # Aggressive (shorter lookback)
+      - name: "BBSqueeze_aggressive"
+        squeeze_lookback: 10
+        volume_multiplier: 2.0
+        rsi_threshold: 55
+        min_days_above: 10
+        trailing_stop_atr: 1.5
+        use_middle_band_exit: true
+        period: 15
+
+      # Conservative (longer lookback)
+      - name: "BBSqueeze_conservative"
+        squeeze_lookback: 30
+        volume_multiplier: 1.5
+        rsi_threshold: 50
+        min_days_above: 20
+        trailing_stop_atr: 2.5
+        use_middle_band_exit: true
+        period: 30
+
+      # No middle band exit
+      - name: "BBSqueeze_no_mb"
+        squeeze_lookback: 20
+        volume_multiplier: 1.5
+        rsi_threshold: 50
+        min_days_above: 15
+        trailing_stop_atr: 2.0
+        use_middle_band_exit: false
+        period: 25
+
+      # High volume filter
+      - name: "BBSqueeze_high_vol"
+        squeeze_lookback: 20
+        volume_multiplier: 2.5
+        rsi_threshold: 55
+        min_days_above: 20
+        trailing_stop_atr: 2.0
+        use_middle_band_exit: true
+        period: 20
+
+  # ============================================
+  # MACD + RSI Confluence
+  # ============================================
+  macd_rsi_confluence:
+    enabled: true
+    script: "src.analysis.macd_rsi_confluence"
+
+    parameter_sets:
+      # Standard recovery zone
+      - name: "MACD_RSI_standard"
+        rsi_entry_min: 40
+        rsi_entry_max: 60
+        rsi_prev_max: 45
+        rsi_overbought: 70
+        adx_threshold: 20
+        min_days_above: 15
+        atr_multiplier_sl: 2.0
+        period: 15
+
+      # Wider RSI zone
+      - name: "MACD_RSI_wide"
+        rsi_entry_min: 35
+        rsi_entry_max: 65
+        rsi_prev_max: 50
+        rsi_overbought: 75
+        adx_threshold: 20
+        min_days_above: 15
+        atr_multiplier_sl: 2.5
+        period: 20
+
+      # Tighter RSI zone
+      - name: "MACD_RSI_tight"
+        rsi_entry_min: 40
+        rsi_entry_max: 55
+        rsi_prev_max: 40
+        rsi_overbought: 65
+        adx_threshold: 25
+        min_days_above: 15
+        atr_multiplier_sl: 1.5
+        period: 12
+
+      # Strong trend filter
+      - name: "MACD_RSI_strong_trend"
+        rsi_entry_min: 45
+        rsi_entry_max: 60
+        rsi_prev_max: 45
+        rsi_overbought: 70
+        adx_threshold: 30
+        min_days_above: 20
+        atr_multiplier_sl: 2.0
+        period: 15
+
 # Output settings
 output:
   results_dir: "results/batch"
   comparison_file: "results/batch/comparison_all.txt"
-  top_n_strategies: 10  # Show top 10 best performers
+  top_n_strategies: 15  # Show top 15 best performers
 
 # Execution settings
 execution:
