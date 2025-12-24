@@ -54,6 +54,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma, calculate_rsi, calculate_atr, calculate_macd, calculate_adx
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def detect_macd_rsi_signals(
@@ -390,95 +391,6 @@ def run_analysis(
     return results_df[available_cols]
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str, **kwargs):
-    """Print summary statistics."""
-    if results_df.empty:
-        print("\nNo results to summarize.")
-        return
-
-    print("\n" + "=" * 70)
-    print(f"MACD + RSI CONFLUENCE ANALYSIS - {ticker}")
-    print("=" * 70)
-
-    start_date = results_df['date'].min().date()
-    end_date = results_df['date'].max().date()
-    print(f"Period: {start_date} to {end_date}")
-
-    print(f"\nSTRATEGY: MACD + RSI Confluence")
-    print(f"  Entry: MACD histogram cross + RSI 40-60 recovery")
-    print(f"  Exit:  MACD negative OR RSI > 70 OR ATR stop")
-
-    print(f"\nSIGNALS: {len(results_df)}")
-
-    # Exit breakdown
-    sl_exits = results_df[results_df['exit_type'] == 'stop_loss']
-    rsi_exits = results_df[results_df['exit_type'] == 'rsi_overbought']
-    macd_exits = results_df[results_df['exit_type'] == 'macd_exit']
-    period_end = results_df[results_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE")
-    print(f"  Stop-loss:     {len(sl_exits):3d}  ({len(sl_exits)/len(results_df)*100:.1f}%)")
-    print(f"  RSI overbought:{len(rsi_exits):3d}  ({len(rsi_exits)/len(results_df)*100:.1f}%)")
-    print(f"  MACD negative: {len(macd_exits):3d}  ({len(macd_exits)/len(results_df)*100:.1f}%)")
-    print(f"  Period end:    {len(period_end):3d}  ({len(period_end)/len(results_df)*100:.1f}%)")
-
-    winners = results_df[results_df['is_winner'] == True]
-    losers = results_df[results_df['is_winner'] == False]
-
-    print(f"\nWIN/LOSS")
-    print(f"  Winners: {len(winners):3d}  ({len(winners)/len(results_df)*100:.1f}%)")
-    print(f"  Losers:  {len(losers):3d}  ({len(losers)/len(results_df)*100:.1f}%)")
-    print(f"  Avg exit %: {results_df['exit_pct'].mean():+.2f}%")
-
-    print("=" * 70 + "\n")
-
-
-def print_aggregate_summary(combined_df: pd.DataFrame):
-    """Print aggregate summary."""
-    if combined_df.empty:
-        return
-
-    print("\n" + "=" * 80)
-    print("AGGREGATE SUMMARY - MACD + RSI CONFLUENCE")
-    print("=" * 80)
-
-    print(f"Strategy: MACD + RSI Confluence")
-    print(f"Tickers: {combined_df['ticker'].nunique()}")
-    print(f"Signals: {len(combined_df)}")
-
-    winners = combined_df[combined_df['is_winner'] == True]
-    losers = combined_df[combined_df['is_winner'] == False]
-
-    win_rate = len(winners) / len(combined_df) * 100
-    avg_win = winners['exit_pct'].mean() if len(winners) > 0 else 0
-    avg_loss = abs(losers['exit_pct'].mean()) if len(losers) > 0 else 1
-
-    total_gains = winners['exit_pct'].sum() if len(winners) > 0 else 0
-    total_losses = abs(losers['exit_pct'].sum()) if len(losers) > 0 else 1
-    profit_factor = total_gains / total_losses if total_losses > 0 else float('inf')
-
-    print(f"\nPERFORMANCE")
-    print(f"  Win Rate:      {win_rate:.2f}%")
-    print(f"  Avg Return:    {combined_df['exit_pct'].mean():+.2f}%")
-    print(f"  Avg Winner:    {avg_win:+.2f}%")
-    print(f"  Avg Loser:     {-avg_loss:+.2f}%")
-    print(f"  Profit Factor: {profit_factor:.2f}")
-    print(f"  Risk/Reward:   {avg_win/avg_loss:.2f}:1" if avg_loss > 0 else "  Risk/Reward:   N/A")
-
-    sl_exits = combined_df[combined_df['exit_type'] == 'stop_loss']
-    rsi_exits = combined_df[combined_df['exit_type'] == 'rsi_overbought']
-    macd_exits = combined_df[combined_df['exit_type'] == 'macd_exit']
-    period_end = combined_df[combined_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT BREAKDOWN")
-    print(f"  Stop-loss:      {len(sl_exits):4d}  ({len(sl_exits)/len(combined_df)*100:.1f}%)")
-    print(f"  RSI overbought: {len(rsi_exits):4d}  ({len(rsi_exits)/len(combined_df)*100:.1f}%)")
-    print(f"  MACD negative:  {len(macd_exits):4d}  ({len(macd_exits)/len(combined_df)*100:.1f}%)")
-    print(f"  Period end:     {len(period_end):4d}  ({len(period_end)/len(combined_df)*100:.1f}%)")
-
-    print("=" * 80 + "\n")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -541,7 +453,20 @@ def main():
                 if args.sp500:
                     print(f"OK {len(results_df)}")
                 elif show_individual:
-                    print_summary(results_df, ticker)
+                    print_summary(
+                        results_df,
+                        strategy_name="MACD RSI Confluence",
+                        ticker=ticker,
+                        strategy_description=f"MACD histogram cross + RSI {args.rsi_entry_min}-{args.rsi_entry_max} recovery",
+                        settings={
+                            'RSI entry range': f"{args.rsi_entry_min}-{args.rsi_entry_max}",
+                            'RSI prev max': args.rsi_prev_max,
+                            'RSI overbought': args.rsi_overbought,
+                            'ADX threshold': args.adx_threshold,
+                            'ATR stop-loss': f"{args.atr_sl}x",
+                            'Max hold': f"{args.period} days"
+                        }
+                    )
             else:
                 if args.sp500:
                     print("--")
@@ -554,7 +479,7 @@ def main():
         combined_df = pd.concat(all_results, ignore_index=True)
 
         if len(tickers) > 1:
-            print_aggregate_summary(combined_df)
+            print_aggregate_summary(combined_df, strategy_name="MACD RSI Confluence")
 
         if args.export:
             export_dir = os.path.dirname(args.export)

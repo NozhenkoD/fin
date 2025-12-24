@@ -48,6 +48,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_sma, calculate_rsi, calculate_atr, calculate_adx
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def detect_atr_mean_reversion_signals(
@@ -406,110 +407,6 @@ def run_analysis(
     return results_df[available_cols]
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str, **kwargs):
-    """Print summary statistics."""
-    if results_df.empty:
-        print("\nNo results to summarize.")
-        return
-
-    print("\n" + "=" * 70)
-    print(f"ATR MEAN REVERSION ANALYSIS - {ticker}")
-    print("=" * 70)
-
-    start_date = results_df['date'].min().date()
-    end_date = results_df['date'].max().date()
-    print(f"Period: {start_date} to {end_date}")
-
-    print(f"\nSTRATEGY: ATR-Based Mean Reversion (Volatility Adaptive)")
-    print(f"  Stop-loss:   {kwargs.get('atr_multiplier_sl', 2.0):.1f} x ATR below entry")
-    print(f"  Take-profit: {kwargs.get('atr_multiplier_tp', 3.0):.1f} x ATR above entry")
-
-    print(f"\nSIGNALS: {len(results_df)}")
-
-    # Exit breakdown
-    sl_hits = results_df[results_df['exit_type'] == 'stop_loss']
-    tp_hits = results_df[results_df['exit_type'] == 'take_profit']
-    rsi_exits = results_df[results_df['exit_type'] == 'rsi_exit']
-    period_end = results_df[results_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT TYPE")
-    print(f"  Stop-loss:    {len(sl_hits):3d}  ({len(sl_hits)/len(results_df)*100:.1f}%)")
-    print(f"  Take-profit:  {len(tp_hits):3d}  ({len(tp_hits)/len(results_df)*100:.1f}%)")
-    print(f"  RSI exit:     {len(rsi_exits):3d}  ({len(rsi_exits)/len(results_df)*100:.1f}%)")
-    print(f"  Period end:   {len(period_end):3d}  ({len(period_end)/len(results_df)*100:.1f}%)")
-
-    winners = results_df[results_df['is_winner'] == True]
-    losers = results_df[results_df['is_winner'] == False]
-
-    print(f"\nWIN/LOSS")
-    print(f"  Winners: {len(winners):3d}  ({len(winners)/len(results_df)*100:.1f}%)")
-    print(f"  Losers:  {len(losers):3d}  ({len(losers)/len(results_df)*100:.1f}%)")
-    print(f"  Avg exit day: {results_df['exit_day'].mean():.1f}")
-    print(f"  Avg exit %:   {results_df['exit_pct'].mean():+.2f}%")
-
-    if len(winners) > 0:
-        print(f"  Avg winner:   {winners['exit_pct'].mean():+.2f}%")
-    if len(losers) > 0:
-        print(f"  Avg loser:    {losers['exit_pct'].mean():+.2f}%")
-
-    # ATR insights
-    print(f"\nVOLATILITY INSIGHTS")
-    print(f"  Avg ATR as % of price: {results_df['atr_pct_of_price'].mean():.2f}%")
-
-    print("=" * 70 + "\n")
-
-
-def print_aggregate_summary(combined_df: pd.DataFrame):
-    """Print aggregate summary."""
-    if combined_df.empty:
-        return
-
-    print("\n" + "=" * 80)
-    print("AGGREGATE SUMMARY - ATR MEAN REVERSION")
-    print("=" * 80)
-
-    print(f"Strategy: ATR-Based Mean Reversion")
-    print(f"Tickers: {combined_df['ticker'].nunique()}")
-    print(f"Signals: {len(combined_df)}")
-
-    winners = combined_df[combined_df['is_winner'] == True]
-    losers = combined_df[combined_df['is_winner'] == False]
-
-    win_rate = len(winners) / len(combined_df) * 100
-    avg_win = winners['exit_pct'].mean() if len(winners) > 0 else 0
-    avg_loss = abs(losers['exit_pct'].mean()) if len(losers) > 0 else 1
-
-    # Profit Factor
-    total_gains = winners['exit_pct'].sum() if len(winners) > 0 else 0
-    total_losses = abs(losers['exit_pct'].sum()) if len(losers) > 0 else 1
-    profit_factor = total_gains / total_losses if total_losses > 0 else float('inf')
-
-    print(f"\nPERFORMANCE")
-    print(f"  Win Rate:      {win_rate:.2f}%")
-    print(f"  Avg Return:    {combined_df['exit_pct'].mean():+.2f}%")
-    print(f"  Avg Winner:    {avg_win:+.2f}%")
-    print(f"  Avg Loser:     {-avg_loss:+.2f}%")
-    print(f"  Profit Factor: {profit_factor:.2f}")
-    print(f"  Risk/Reward:   {avg_win/avg_loss:.2f}:1" if avg_loss > 0 else "  Risk/Reward:   N/A")
-
-    # Exit breakdown
-    sl_hits = combined_df[combined_df['exit_type'] == 'stop_loss']
-    tp_hits = combined_df[combined_df['exit_type'] == 'take_profit']
-    rsi_exits = combined_df[combined_df['exit_type'] == 'rsi_exit']
-    period_end = combined_df[combined_df['exit_type'] == 'period_end']
-
-    print(f"\nEXIT BREAKDOWN")
-    print(f"  Stop-loss:    {len(sl_hits):4d}  ({len(sl_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  Take-profit:  {len(tp_hits):4d}  ({len(tp_hits)/len(combined_df)*100:.1f}%)")
-    print(f"  RSI exit:     {len(rsi_exits):4d}  ({len(rsi_exits)/len(combined_df)*100:.1f}%)")
-    print(f"  Period end:   {len(period_end):4d}  ({len(period_end)/len(combined_df)*100:.1f}%)")
-
-    print(f"\nVOLATILITY")
-    print(f"  Avg ATR %: {combined_df['atr_pct_of_price'].mean():.2f}%")
-
-    print("=" * 80 + "\n")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -575,9 +472,18 @@ def main():
                     print(f"OK {len(results_df)}")
                 elif show_individual:
                     print_summary(
-                        results_df, ticker,
-                        atr_multiplier_sl=args.atr_sl,
-                        atr_multiplier_tp=args.atr_tp
+                        results_df,
+                        strategy_name="ATR Mean Reversion",
+                        ticker=ticker,
+                        strategy_description=f"Volatility-adaptive stops: SL={args.atr_sl}xATR, TP={args.atr_tp}xATR",
+                        settings={
+                            'RSI threshold': args.rsi_threshold,
+                            'RSI exit': args.rsi_exit,
+                            'ATR SL multiplier': f"{args.atr_sl}x",
+                            'ATR TP multiplier': f"{args.atr_tp}x",
+                            'ADX threshold': args.adx_threshold if not args.no_adx else 'disabled',
+                            'Max hold': f"{args.period} days"
+                        }
                     )
             else:
                 if args.sp500:
@@ -591,7 +497,7 @@ def main():
         combined_df = pd.concat(all_results, ignore_index=True)
 
         if len(tickers) > 1:
-            print_aggregate_summary(combined_df)
+            print_aggregate_summary(combined_df, strategy_name="ATR Mean Reversion")
 
         if args.export:
             export_dir = os.path.dirname(args.export)
