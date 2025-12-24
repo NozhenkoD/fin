@@ -40,7 +40,7 @@ def detect_ma_pullback_signals(df: pd.DataFrame,
                                 long_ma: int = 200,
                                 short_ma: int = 20,
                                 volume_multiplier: float = 1.5,
-                                min_days_above_long: int = 20) -> List[int]:
+                                min_days_above_long: int = 5) -> List[int]:
     """
     Detect Moving Average pullback signals.
 
