@@ -30,6 +30,7 @@ if project_root not in sys.path:
 from src.data.cache import CacheManager
 from src.data.sp500_loader import load_sp500_tickers
 from src.indicators.technical import calculate_atr
+from src.analysis.summary import print_summary, print_aggregate_summary
 
 
 def detect_swing_lows(
@@ -471,52 +472,6 @@ def run_analysis(
     return results_df
 
 
-def print_summary(results_df: pd.DataFrame, ticker: str) -> None:
-    """Print formatted backtest results summary."""
-    if results_df.empty:
-        print(f"\nNo signals found for {ticker}")
-        return
-
-    total_trades = len(results_df)
-    winners = results_df['is_winner'].sum()
-    losers = total_trades - winners
-    win_rate = (winners / total_trades * 100) if total_trades > 0 else 0
-
-    avg_return = results_df['exit_pct'].mean()
-    avg_winner = results_df[results_df['is_winner']]['exit_pct'].mean() if winners > 0 else 0
-    avg_loser = results_df[~results_df['is_winner']]['exit_pct'].mean() if losers > 0 else 0
-
-    avg_hold_days = results_df['exit_day'].mean()
-
-    # Exit type distribution
-    exit_types = results_df['exit_type'].value_counts()
-
-    # Risk metrics
-    avg_risk = results_df['risk_pct'].mean()
-
-    print(f"\n{'='*60}")
-    print(f"BACKTEST RESULTS: {ticker}")
-    print(f"{'='*60}")
-    print(f"Total Trades:     {total_trades}")
-    print(f"Winners:          {winners} ({win_rate:.1f}%)")
-    print(f"Losers:           {losers} ({100-win_rate:.1f}%)")
-    print(f"\nReturns:")
-    print(f"  Avg Return:     {avg_return:+.2f}%")
-    print(f"  Avg Winner:     {avg_winner:+.2f}%")
-    print(f"  Avg Loser:      {avg_loser:+.2f}%")
-    print(f"\nRisk/Reward:")
-    print(f"  Avg Risk:       {avg_risk:.2f}%")
-    if avg_loser != 0:
-        print(f"  Risk/Reward:    {avg_winner/abs(avg_loser):.2f}:1")
-    print(f"\nHold Time:")
-    print(f"  Avg Hold Days:  {avg_hold_days:.1f}")
-    print(f"\nExit Types:")
-    for exit_type, count in exit_types.items():
-        pct = (count / total_trades * 100)
-        print(f"  {exit_type:15s} {count:3d} ({pct:.1f}%)")
-    print(f"{'='*60}\n")
-
-
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -626,21 +581,19 @@ Examples:
     if all_results:
         combined_df = pd.concat(all_results, ignore_index=True)
 
-        print(f"\n{'='*60}")
-        print(f"ANALYSIS COMPLETE")
-        print(f"{'='*60}")
-        print(f"Tickers processed:  {len(tickers)}")
-        print(f"  Successful:       {successful}")
-        print(f"  Failed:           {failed}")
-        print(f"Total signals:      {len(combined_df)}")
-        print(f"Overall win rate:   {(combined_df['is_winner'].sum() / len(combined_df) * 100):.1f}%")
-        print(f"Avg return:         {combined_df['exit_pct'].mean():+.2f}%")
+        if len(tickers) > 1:
+            print_aggregate_summary(combined_df, strategy_name="Breakout Momentum")
 
         if args.export:
+            export_dir = os.path.dirname(args.export)
+            if export_dir and not os.path.exists(export_dir):
+                os.makedirs(export_dir)
             combined_df.to_csv(args.export, index=False)
-            print(f"\nResults exported to: {args.export}")
+            print(f"\nExported to: {args.export}")
 
-        print(f"{'='*60}\n")
+        if failed:
+            print(f"\nFailed ({len(failed)}): {', '.join(failed[:20])}")
+
     else:
         print("\nNo signals found across all tickers.")
 
