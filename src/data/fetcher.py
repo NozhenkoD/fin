@@ -1,6 +1,7 @@
 import yfinance as yf
 import pandas as pd
-from typing import Dict, List
+from typing import Dict, List, Optional
+from datetime import datetime
 
 
 class DataFetcher:
@@ -22,13 +23,21 @@ class DataFetcher:
         self.period = period
         self.interval = interval
 
-    def fetch_ticker_data(self, ticker: str, period: str = None) -> pd.DataFrame:
+    def fetch_ticker_data(
+        self,
+        ticker: str,
+        period: Optional[str] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None
+    ) -> pd.DataFrame:
         """
         Fetch OHLCV data for a single ticker.
 
         Args:
             ticker: Stock ticker symbol
-            period: Optional override for the default period
+            period: Optional override for the default period (ignored if start/end provided)
+            start: Optional start date for fetching (enables incremental updates)
+            end: Optional end date for fetching (defaults to today)
 
         Returns:
             DataFrame with columns: ['Open', 'High', 'Low', 'Close', 'Volume']
@@ -36,10 +45,20 @@ class DataFetcher:
 
         Raises:
             Exception: If data fetch fails
+
+        Note:
+            If start/end dates are provided, they take precedence over period.
+            For incremental updates, pass the last cached date as 'start'.
         """
-        period = period or self.period
         ticker_obj = yf.Ticker(ticker)
-        df = ticker_obj.history(period=period, interval=self.interval)
+
+        # Use date range if provided (for incremental updates)
+        if start is not None or end is not None:
+            df = ticker_obj.history(start=start, end=end, interval=self.interval)
+        else:
+            # Fall back to period-based fetching
+            period = period or self.period
+            df = ticker_obj.history(period=period, interval=self.interval)
 
         if df.empty:
             raise ValueError(f"No data returned for {ticker}")
@@ -68,7 +87,13 @@ class DataFetcher:
 
         return info
 
-    def fetch_batch(self, tickers: List[str], period: str = None) -> Dict[str, dict]:
+    def fetch_batch(
+        self,
+        tickers: List[str],
+        period: Optional[str] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None
+    ) -> Dict[str, dict]:
         """
         Fetch data for multiple tickers with per-ticker error handling.
 
@@ -77,7 +102,9 @@ class DataFetcher:
 
         Args:
             tickers: List of ticker symbols
-            period: Optional override for the default period
+            period: Optional override for the default period (ignored if start/end provided)
+            start: Optional start date for fetching (enables incremental updates)
+            end: Optional end date for fetching (defaults to today)
 
         Returns:
             Dictionary mapping ticker to results:
@@ -94,13 +121,12 @@ class DataFetcher:
                 }
             }
         """
-        period = period or self.period
         results = {}
 
         for ticker in tickers:
             try:
-                # Fetch data and info
-                data = self.fetch_ticker_data(ticker, period)
+                # Fetch data and info with date range support
+                data = self.fetch_ticker_data(ticker, period=period, start=start, end=end)
                 info = self.fetch_ticker_info(ticker)
 
                 results[ticker] = {
@@ -121,19 +147,27 @@ class DataFetcher:
 
         return results
 
-    def fetch_single(self, ticker: str, period: str = None) -> dict:
+    def fetch_single(
+        self,
+        ticker: str,
+        period: Optional[str] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None
+    ) -> dict:
         """
         Fetch data for a single ticker with error handling.
 
         Args:
             ticker: Stock ticker symbol
-            period: Optional override for the default period
+            period: Optional override for the default period (ignored if start/end provided)
+            start: Optional start date for fetching (enables incremental updates)
+            end: Optional end date for fetching (defaults to today)
 
         Returns:
             Dictionary with 'data', 'info', and 'error' keys
         """
         try:
-            data = self.fetch_ticker_data(ticker, period)
+            data = self.fetch_ticker_data(ticker, period=period, start=start, end=end)
             info = self.fetch_ticker_info(ticker)
 
             return {

@@ -241,13 +241,51 @@ fin/
 ### Initial Data Download
 ```bash
 # Download S&P 500 historical data (one-time, ~10-20 min)
-python -m src.data.download_history
+python -m src.data.download_history --sp500
+
+# Or download specific tickers
+python -m src.data.download_history --tickers AAPL MSFT GOOGL
+
+# Download with custom date range
+python -m src.data.download_history --sp500 --start 2020-01-01 --end 2023-12-31
 ```
 
-### Update Cached Data
+### Incremental Updates (Recommended for Weekly Use)
+The framework now supports **incremental data fetching** - only downloading new data since the last cached date instead of re-downloading all historical data.
+
 ```bash
-# Update all cached data to latest
+# Update all cached tickers (only fetches new data)
 python -m src.data.update_cache
+
+# Update specific tickers
+python -m src.data.update_cache --tickers AAPL MSFT GOOGL
+
+# Update S&P 500 tickers
+python -m src.data.update_cache --sp500
+
+# Force update even if up-to-date
+python -m src.data.update_cache --force
+```
+
+**How it works:**
+1. The system checks the last cached date for each ticker
+2. Only fetches data from that date to today (e.g., if last date is 2024-12-20, only fetches Dec 21-25)
+3. Merges new data with existing cache
+4. Much faster than re-downloading all historical data
+
+**Weekly Automation (Cron Job):**
+```bash
+# Add to your crontab (runs every Monday at 6 AM)
+0 6 * * 1 cd /path/to/fin && python3 -m src.data.update_cache --sp500
+
+# Or run every day at market close (6 PM EST)
+0 18 * * * cd /path/to/fin && python3 -m src.data.update_cache --sp500
+```
+
+**Test Incremental Update:**
+```bash
+# Test on a single ticker to see incremental fetching in action
+python3 test_incremental_update.py
 ```
 
 ## Performance Tips

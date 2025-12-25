@@ -324,8 +324,15 @@ class CacheManager:
                     else:
                         print(f"[{i}/{total}] {ticker}: Downloading full history...")
 
-                # Use fetcher to download data
-                ticker_data = fetcher.fetch_batch([ticker])
+                # Use fetcher to download data with incremental support
+                # If we have cached data, only fetch from the last cached date
+                if gap_info['last_cached_date']:
+                    # Add 1 day to avoid duplicates (yfinance is inclusive on start date)
+                    start_date = gap_info['last_cached_date'] + timedelta(days=1)
+                    ticker_data = fetcher.fetch_batch([ticker], start=start_date, end=None)
+                else:
+                    # No cached data, fetch full history
+                    ticker_data = fetcher.fetch_batch([ticker])
 
                 if ticker not in ticker_data or ticker_data[ticker]['error']:
                     error_msg = ticker_data[ticker].get('error', 'Unknown error') if ticker in ticker_data else 'Fetch failed'

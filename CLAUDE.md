@@ -119,11 +119,37 @@ def main():
 ```python
 cache_manager = CacheManager(cache_dir='data/cache/ohlcv')
 df = cache_manager.get_ticker_data('AAPL')  # Returns OHLCV DataFrame
+
+# Check cache status
+last_date = cache_manager.get_last_cached_date('AAPL')  # Returns datetime
+gap_info = cache_manager.detect_gaps('AAPL')  # Returns gap information
+
+# Incremental update (only fetches new data)
+fetcher = DataFetcher(period='max', interval='1d')
+results = cache_manager.batch_update(
+    tickers=['AAPL', 'MSFT'],
+    fetcher=fetcher,
+    force_update=False  # Skip if already up-to-date
+)
 ```
 
-- Manages local cache of historical price data
-- Downloads from yfinance on first access
-- Subsequent accesses are instant (reads from pickle files)
+**Key Features:**
+- Manages local Parquet cache of historical price data (compressed, fast columnar storage)
+- **Incremental updates**: Only fetches data since last cached date
+- Gap detection: Automatically identifies missing date ranges
+- Metadata tracking: Stores last update time, date range, row count for each ticker
+- Thread-safe operations with metadata locking
+- Subsequent accesses are instant (reads from Parquet files)
+
+**Incremental Update Workflow:**
+1. `detect_gaps()` checks the last cached date for a ticker
+2. `batch_update()` passes the last date to DataFetcher as start parameter
+3. DataFetcher only downloads data from that date to today
+4. New data is merged with existing cache (duplicates removed)
+5. Metadata is updated with new date range
+
+**For Weekly Updates:**
+Use `python -m src.data.update_cache --sp500` to update all tickers incrementally. This is much faster than re-downloading all historical data.
 
 ### Summary Module (src/analysis/summary.py)
 
