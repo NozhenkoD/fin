@@ -18,7 +18,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from src.data.cache import CacheManager
-from src.data.sp500_loader import load_sp500_tickers
+from src.data.sp500_loader import load_sp500_tickers, load_custom_tickers, load_all_tickers
 from src.data.fetcher import DataFetcher
 
 try:
@@ -38,11 +38,17 @@ Examples:
   # Update all cached tickers
   python -m src.data.update_cache
 
+  # Update S&P 500 tickers only
+  python -m src.data.update_cache --sp500
+
+  # Update custom tickers only
+  python -m src.data.update_cache --custom
+
+  # Update all tickers (S&P 500 + custom)
+  python -m src.data.update_cache --all
+
   # Update specific tickers
   python -m src.data.update_cache --tickers AAPL MSFT GOOGL
-
-  # Update S&P 500 (reads from sp500.csv)
-  python -m src.data.update_cache --sp500
 
   # Increase rate limit delay
   python -m src.data.update_cache --delay 1.0
@@ -63,6 +69,18 @@ For initial downloads, use: python -m src.data.download_history
     )
 
     parser.add_argument(
+        '--custom',
+        action='store_true',
+        help='Update custom tickers from data/custom_tickers.csv'
+    )
+
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Update all tickers (S&P 500 + custom combined)'
+    )
+
+    parser.add_argument(
         '--tickers',
         nargs='+',
         help='Specific tickers to update (space-separated). If not specified, updates all cached tickers.'
@@ -72,6 +90,12 @@ For initial downloads, use: python -m src.data.download_history
         '--sp500-file',
         default='data/sp500.csv',
         help='Path to S&P 500 CSV file (default: data/sp500.csv)'
+    )
+
+    parser.add_argument(
+        '--custom-file',
+        default='data/custom_tickers.csv',
+        help='Path to custom tickers CSV file (default: data/custom_tickers.csv)'
     )
 
     # Options
@@ -119,6 +143,23 @@ For initial downloads, use: python -m src.data.download_history
             sys.exit(1)
         except Exception as e:
             print(f"\nError loading S&P 500 tickers: {e}")
+            sys.exit(1)
+    elif args.custom:
+        try:
+            tickers = load_custom_tickers(args.custom_file)
+            print(f"Loaded {len(tickers)} custom tickers from {args.custom_file}")
+        except FileNotFoundError as e:
+            print(f"\nError: {e}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"\nError loading custom tickers: {e}")
+            sys.exit(1)
+    elif args.all:
+        try:
+            tickers = load_all_tickers(args.sp500_file, args.custom_file)
+            print(f"Loaded {len(tickers)} total tickers (S&P 500 + custom)")
+        except Exception as e:
+            print(f"\nError loading tickers: {e}")
             sys.exit(1)
     elif args.tickers:
         tickers = args.tickers

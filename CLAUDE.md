@@ -28,7 +28,7 @@ fin/
 │   ├── data/              # Data management
 │   │   ├── cache.py       # CacheManager for OHLCV data
 │   │   ├── download_history.py  # Initial data download
-│   │   ├── sp500_loader.py      # S&P 500 ticker list
+│   │   ├── sp500_loader.py      # Ticker list loader (S&P 500, custom, all)
 │   │   └── update_cache.py      # Update cached data
 │   ├── indicators/        # Technical indicators
 │   │   └── technical.py   # SMA, RSI, ATR, MACD, ADX, BBands, etc.
@@ -36,8 +36,49 @@ fin/
 │   ├── models/            # Legacy data models
 │   └── presentation/      # Legacy formatters
 ├── data/
+│   ├── sp500.csv          # S&P 500 ticker list
+│   ├── custom_tickers.csv # Custom watchlist (user-editable)
 │   └── cache/ohlcv/       # Cached historical price data
 └── results/               # Exported CSV results
+```
+
+### Custom Ticker Lists
+
+The framework supports three ticker sources:
+1. **S&P 500**: `data/sp500.csv` - 500+ stocks
+2. **Custom Watchlist**: `data/custom_tickers.csv` - User-defined tickers (TSLA, NVDA, COIN, etc.)
+3. **All Combined**: Both lists merged (duplicates removed)
+
+**Loading Functions (src/data/sp500_loader.py):**
+```python
+from src.data.sp500_loader import load_sp500_tickers, load_custom_tickers, load_all_tickers
+
+# Load S&P 500 only
+sp500 = load_sp500_tickers()  # Returns list of ticker symbols
+
+# Load custom watchlist only
+custom = load_custom_tickers()  # Returns list from custom_tickers.csv
+
+# Load all tickers (S&P 500 + custom)
+all_tickers = load_all_tickers()  # Returns combined unique list
+```
+
+**CLI Flags (used in download_history.py, update_cache.py, strategies):**
+- `--sp500`: Use S&P 500 tickers only
+- `--custom`: Use custom watchlist only
+- `--all`: Use both lists combined
+- `--tickers AAPL MSFT`: Use specific tickers
+
+**Example Usage:**
+```bash
+# Download only custom watchlist
+python -m src.data.download_history --custom
+
+# Update all tickers (S&P 500 + custom)
+python -m src.data.update_cache --all
+
+# Run strategy on custom watchlist
+python -m src.analysis.rsi_mean_reversion --custom
 ```
 
 ## Strategy Implementation Pattern
