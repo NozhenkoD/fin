@@ -238,16 +238,83 @@ fin/
 
 ## Data Management
 
+### Custom Ticker Watchlist
+
+In addition to the S&P 500, you can maintain a custom watchlist of tickers in `data/custom_tickers.csv`. This is perfect for:
+- Testing strategies on specific stocks (TSLA, NVDA, COIN, etc.)
+- Tracking stocks not in the S&P 500
+- Maintaining a personal portfolio/watchlist
+
+**Edit `data/custom_tickers.csv` to add your tickers:**
+```csv
+Symbol,Name,Sector,GICS Sub-Industry,Headquarters Location,Date added,CIK,Founded
+TSLA,Tesla Inc.,Consumer Discretionary,Automobile Manufacturers,"Austin, Texas",2023-12-18,1318605,2003
+NVDA,NVIDIA Corporation,Information Technology,Semiconductors,"Santa Clara, California",2024-06-24,1045810,1993
+```
+
 ### Initial Data Download
 ```bash
 # Download S&P 500 historical data (one-time, ~10-20 min)
-python -m src.data.download_history
+python -m src.data.download_history --sp500
+
+# Download custom watchlist only
+python -m src.data.download_history --custom
+
+# Download ALL tickers (S&P 500 + custom combined)
+python -m src.data.download_history --all
+
+# Or download specific tickers
+python -m src.data.download_history --tickers AAPL MSFT GOOGL
+
+# Download with custom date range
+python -m src.data.download_history --sp500 --start 2020-01-01 --end 2023-12-31
 ```
 
-### Update Cached Data
+### Incremental Updates (Recommended for Weekly Use)
+The framework now supports **incremental data fetching** - only downloading new data since the last cached date instead of re-downloading all historical data.
+
 ```bash
-# Update all cached data to latest
+# Update all cached tickers (only fetches new data)
 python -m src.data.update_cache
+
+# Update S&P 500 tickers only
+python -m src.data.update_cache --sp500
+
+# Update custom watchlist only
+python -m src.data.update_cache --custom
+
+# Update ALL tickers (S&P 500 + custom)
+python -m src.data.update_cache --all
+
+# Update specific tickers
+python -m src.data.update_cache --tickers AAPL MSFT GOOGL
+
+# Force update even if up-to-date
+python -m src.data.update_cache --force
+```
+
+**How it works:**
+1. The system checks the last cached date for each ticker
+2. Only fetches data from that date to today (e.g., if last date is 2024-12-20, only fetches Dec 21-25)
+3. Merges new data with existing cache
+4. Much faster than re-downloading all historical data
+
+**Weekly Automation (Cron Job):**
+```bash
+# Update S&P 500 every Monday at 6 AM
+0 6 * * 1 cd /path/to/fin && python3 -m src.data.update_cache --sp500
+
+# Update ALL tickers (S&P 500 + custom) every day at market close (6 PM EST)
+0 18 * * * cd /path/to/fin && python3 -m src.data.update_cache --all
+
+# Update custom watchlist only (faster for small lists)
+0 18 * * * cd /path/to/fin && python3 -m src.data.update_cache --custom
+```
+
+**Test Incremental Update:**
+```bash
+# Test on a single ticker to see incremental fetching in action
+python3 test_incremental_update.py
 ```
 
 ## Performance Tips

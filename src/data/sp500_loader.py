@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-S&P 500 Ticker Loader
+Ticker List Loader
 
-Loads S&P 500 ticker list from CSV file.
+Loads ticker lists from CSV files (S&P 500, custom watchlist, or all combined).
 """
 
 import os
@@ -152,10 +152,80 @@ def load_sp500_metadata(csv_path: str = "data/sp500.csv") -> Dict[str, Dict[str,
         raise RuntimeError(f"Error loading S&P 500 metadata from {csv_path}: {e}")
 
 
+def load_custom_tickers(csv_path: str = "data/custom_tickers.csv") -> List[str]:
+    """
+    Load custom ticker symbols from CSV file.
+
+    Args:
+        csv_path: Path to CSV file with custom tickers (watchlist)
+
+    Returns:
+        List of ticker symbols
+
+    Expected CSV format:
+        Symbol,Name,Sector
+        TSLA,Tesla Inc.,Consumer Discretionary
+        NVDA,NVIDIA Corporation,Information Technology
+    """
+    return load_sp500_tickers(csv_path)  # Reuse same loading logic
+
+
+def load_all_tickers(
+    sp500_path: str = "data/sp500.csv",
+    custom_path: str = "data/custom_tickers.csv"
+) -> List[str]:
+    """
+    Load all tickers from both S&P 500 and custom watchlist.
+
+    Args:
+        sp500_path: Path to S&P 500 CSV file
+        custom_path: Path to custom tickers CSV file
+
+    Returns:
+        Combined list of unique ticker symbols (S&P 500 + custom)
+
+    Note:
+        Duplicates are automatically removed. If a ticker exists in both files,
+        it will only appear once in the output.
+    """
+    tickers = []
+
+    # Load S&P 500 if file exists
+    try:
+        sp500_tickers = load_sp500_tickers(sp500_path)
+        tickers.extend(sp500_tickers)
+    except FileNotFoundError:
+        print(f"Warning: S&P 500 file not found: {sp500_path}")
+    except Exception as e:
+        print(f"Warning: Error loading S&P 500 tickers: {e}")
+
+    # Load custom tickers if file exists
+    try:
+        custom_tickers = load_custom_tickers(custom_path)
+        tickers.extend(custom_tickers)
+    except FileNotFoundError:
+        print(f"Warning: Custom tickers file not found: {custom_path}")
+    except Exception as e:
+        print(f"Warning: Error loading custom tickers: {e}")
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_tickers = []
+    for ticker in tickers:
+        if ticker not in seen:
+            seen.add(ticker)
+            unique_tickers.append(ticker)
+
+    return unique_tickers
+
+
 if __name__ == '__main__':
     """Test the loader with a sample CSV."""
-    # Test loading tickers
+    # Test loading S&P 500 tickers
     try:
+        print("=" * 60)
+        print("S&P 500 TICKERS")
+        print("=" * 60)
         tickers = load_sp500_tickers()
         print(f"Loaded {len(tickers)} S&P 500 tickers")
         print(f"First 10 tickers: {tickers[:10]}")
@@ -171,5 +241,32 @@ if __name__ == '__main__':
 
     except FileNotFoundError as e:
         print(f"Error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+    # Test loading custom tickers
+    try:
+        print("\n" + "=" * 60)
+        print("CUSTOM TICKERS")
+        print("=" * 60)
+        custom = load_custom_tickers()
+        print(f"Loaded {len(custom)} custom tickers")
+        print(f"Custom tickers: {custom}")
+
+    except FileNotFoundError as e:
+        print(f"Custom tickers file not found (this is optional): {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+    # Test loading all tickers
+    try:
+        print("\n" + "=" * 60)
+        print("ALL TICKERS (S&P 500 + CUSTOM)")
+        print("=" * 60)
+        all_tickers = load_all_tickers()
+        print(f"Loaded {len(all_tickers)} total tickers")
+        print(f"First 10: {all_tickers[:10]}")
+        print(f"Last 10: {all_tickers[-10:]}")
+
     except Exception as e:
         print(f"Error: {e}")

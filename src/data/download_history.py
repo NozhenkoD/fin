@@ -17,7 +17,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from src.data.cache import CacheManager
-from src.data.sp500_loader import load_sp500_tickers
+from src.data.sp500_loader import load_sp500_tickers, load_custom_tickers, load_all_tickers
 from src.data.fetcher import DataFetcher
 
 try:
@@ -47,6 +47,12 @@ Examples:
   # Download S&P 500 (default: max available data)
   python -m src.data.download_history --sp500
 
+  # Download custom tickers (from data/custom_tickers.csv)
+  python -m src.data.download_history --custom
+
+  # Download all tickers (S&P 500 + custom)
+  python -m src.data.download_history --all
+
   # Custom period (5 years instead of max)
   python -m src.data.download_history --sp500 --period 5y
 
@@ -75,6 +81,18 @@ Examples:
     )
 
     parser.add_argument(
+        '--custom',
+        action='store_true',
+        help='Download custom tickers from data/custom_tickers.csv'
+    )
+
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Download all tickers (S&P 500 + custom combined)'
+    )
+
+    parser.add_argument(
         '--tickers',
         nargs='+',
         help='Specific tickers to download (space-separated)'
@@ -84,6 +102,12 @@ Examples:
         '--sp500-file',
         default='data/sp500.csv',
         help='Path to S&P 500 CSV file (default: data/sp500.csv)'
+    )
+
+    parser.add_argument(
+        '--custom-file',
+        default='data/custom_tickers.csv',
+        help='Path to custom tickers CSV file (default: data/custom_tickers.csv)'
     )
 
     # Date range
@@ -141,8 +165,11 @@ Examples:
     args = parser.parse_args()
 
     # Validate arguments
-    if not args.sp500 and not args.tickers:
-        parser.error("Must specify either --sp500 or --tickers")
+    ticker_sources = sum([args.sp500, args.custom, args.all, bool(args.tickers)])
+    if ticker_sources == 0:
+        parser.error("Must specify one of: --sp500, --custom, --all, or --tickers")
+    if ticker_sources > 1:
+        parser.error("Can only specify one ticker source at a time")
 
     # Get ticker list
     print("=" * 60)
@@ -158,6 +185,23 @@ Examples:
             sys.exit(1)
         except Exception as e:
             print(f"\nError loading S&P 500 tickers: {e}")
+            sys.exit(1)
+    elif args.custom:
+        try:
+            tickers = load_custom_tickers(args.custom_file)
+            print(f"Loaded {len(tickers)} custom tickers from {args.custom_file}")
+        except FileNotFoundError as e:
+            print(f"\nError: {e}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"\nError loading custom tickers: {e}")
+            sys.exit(1)
+    elif args.all:
+        try:
+            tickers = load_all_tickers(args.sp500_file, args.custom_file)
+            print(f"Loaded {len(tickers)} total tickers (S&P 500 + custom)")
+        except Exception as e:
+            print(f"\nError loading tickers: {e}")
             sys.exit(1)
     else:
         tickers = args.tickers

@@ -28,7 +28,7 @@ fin/
 │   ├── data/              # Data management
 │   │   ├── cache.py       # CacheManager for OHLCV data
 │   │   ├── download_history.py  # Initial data download
-│   │   ├── sp500_loader.py      # S&P 500 ticker list
+│   │   ├── sp500_loader.py      # Ticker list loader (S&P 500, custom, all)
 │   │   └── update_cache.py      # Update cached data
 │   ├── indicators/        # Technical indicators
 │   │   └── technical.py   # SMA, RSI, ATR, MACD, ADX, BBands, etc.
@@ -36,8 +36,49 @@ fin/
 │   ├── models/            # Legacy data models
 │   └── presentation/      # Legacy formatters
 ├── data/
+│   ├── sp500.csv          # S&P 500 ticker list
+│   ├── custom_tickers.csv # Custom watchlist (user-editable)
 │   └── cache/ohlcv/       # Cached historical price data
 └── results/               # Exported CSV results
+```
+
+### Custom Ticker Lists
+
+The framework supports three ticker sources:
+1. **S&P 500**: `data/sp500.csv` - 500+ stocks
+2. **Custom Watchlist**: `data/custom_tickers.csv` - User-defined tickers (TSLA, NVDA, COIN, etc.)
+3. **All Combined**: Both lists merged (duplicates removed)
+
+**Loading Functions (src/data/sp500_loader.py):**
+```python
+from src.data.sp500_loader import load_sp500_tickers, load_custom_tickers, load_all_tickers
+
+# Load S&P 500 only
+sp500 = load_sp500_tickers()  # Returns list of ticker symbols
+
+# Load custom watchlist only
+custom = load_custom_tickers()  # Returns list from custom_tickers.csv
+
+# Load all tickers (S&P 500 + custom)
+all_tickers = load_all_tickers()  # Returns combined unique list
+```
+
+**CLI Flags (used in download_history.py, update_cache.py, strategies):**
+- `--sp500`: Use S&P 500 tickers only
+- `--custom`: Use custom watchlist only
+- `--all`: Use both lists combined
+- `--tickers AAPL MSFT`: Use specific tickers
+
+**Example Usage:**
+```bash
+# Download only custom watchlist
+python -m src.data.download_history --custom
+
+# Update all tickers (S&P 500 + custom)
+python -m src.data.update_cache --all
+
+# Run strategy on custom watchlist
+python -m src.analysis.rsi_mean_reversion --custom
 ```
 
 ## Strategy Implementation Pattern
@@ -119,11 +160,37 @@ def main():
 ```python
 cache_manager = CacheManager(cache_dir='data/cache/ohlcv')
 df = cache_manager.get_ticker_data('AAPL')  # Returns OHLCV DataFrame
+
+# Check cache status
+last_date = cache_manager.get_last_cached_date('AAPL')  # Returns datetime
+gap_info = cache_manager.detect_gaps('AAPL')  # Returns gap information
+
+# Incremental update (only fetches new data)
+fetcher = DataFetcher(period='max', interval='1d')
+results = cache_manager.batch_update(
+    tickers=['AAPL', 'MSFT'],
+    fetcher=fetcher,
+    force_update=False  # Skip if already up-to-date
+)
 ```
 
-- Manages local cache of historical price data
-- Downloads from yfinance on first access
-- Subsequent accesses are instant (reads from pickle files)
+**Key Features:**
+- Manages local Parquet cache of historical price data (compressed, fast columnar storage)
+- **Incremental updates**: Only fetches data since last cached date
+- Gap detection: Automatically identifies missing date ranges
+- Metadata tracking: Stores last update time, date range, row count for each ticker
+- Thread-safe operations with metadata locking
+- Subsequent accesses are instant (reads from Parquet files)
+
+**Incremental Update Workflow:**
+1. `detect_gaps()` checks the last cached date for a ticker
+2. `batch_update()` passes the last date to DataFetcher as start parameter
+3. DataFetcher only downloads data from that date to today
+4. New data is merged with existing cache (duplicates removed)
+5. Metadata is updated with new date range
+
+**For Weekly Updates:**
+Use `python -m src.data.update_cache --sp500` to update all tickers incrementally. This is much faster than re-downloading all historical data.
 
 ### Summary Module (src/analysis/summary.py)
 
