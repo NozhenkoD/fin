@@ -185,11 +185,62 @@ def format_signal_dates(
         return f"{visible_dates}, ... (+{len(dates) - max_dates} more)"
 
 
+def print_signal_details_table(
+    df: pd.DataFrame,
+    max_signals: int = 20,
+    date_format: str = '%Y-%m-%d'
+) -> None:
+    """
+    Print a detailed table of signal dates with entry/exit dates and hold periods.
+
+    Args:
+        df: DataFrame with 'date' and 'exit_day' columns
+        max_signals: Maximum number of signals to show
+        date_format: strftime format for dates
+    """
+    if 'date' not in df.columns or df.empty:
+        print("  No signal data available")
+        return
+
+    if 'exit_day' not in df.columns:
+        print("  Exit day information not available")
+        return
+
+    # Sort by date
+    df_sorted = df.sort_values('date').copy()
+
+    # Calculate exit dates
+    df_sorted['entry_date'] = pd.to_datetime(df_sorted['date'])
+    df_sorted['exit_date'] = df_sorted['entry_date'] + pd.to_timedelta(df_sorted['exit_day'], unit='D')
+
+    # Print table header
+    print(f"  {'Entry Date':<12} {'Exit Date':<12} {'Hold':>6} {'Exit Type':<15} {'Return':>8}")
+    print(f"  {'-' * 12} {'-' * 12} {'-' * 6} {'-' * 15} {'-' * 8}")
+
+    # Print each signal
+    num_signals = min(len(df_sorted), max_signals)
+    for idx, row in df_sorted.head(num_signals).iterrows():
+        entry_str = row['entry_date'].strftime(date_format)
+        exit_str = row['exit_date'].strftime(date_format)
+        hold_days = int(row['exit_day'])
+        exit_type = row.get('exit_type', 'N/A')
+        exit_type_display = exit_type.replace('_', ' ').title()[:15]  # Truncate if too long
+        exit_pct = row.get('exit_pct', 0.0)
+
+        print(f"  {entry_str:<12} {exit_str:<12} {hold_days:>4}d {exit_type_display:<15} {exit_pct:>+7.2f}%")
+
+    # Show truncation message if needed
+    if len(df_sorted) > max_signals:
+        print(f"\n  ... and {len(df_sorted) - max_signals} more signals (use --show-all-signals to see all)")
+
+
 def print_summary(
     results_df: pd.DataFrame,
     strategy_name: str = "Strategy",
     ticker: Optional[str] = None,
     show_signal_dates: bool = False,
+    show_signal_details: bool = False,
+    max_signals_display: int = 20,
     settings: Optional[Dict[str, Any]] = None,
     strategy_description: Optional[str] = None,
     width: int = 60
@@ -212,7 +263,9 @@ def print_summary(
             - entry_rsi, entry_atr, entry_adx, etc. (strategy-specific)
         strategy_name: Name of the strategy (e.g., "RSI Mean Reversion")
         ticker: Optional ticker symbol. If None, uses 'ticker' column if present
-        show_signal_dates: If True, displays dates when signals occurred
+        show_signal_dates: If True, displays dates when signals occurred (comma-separated)
+        show_signal_details: If True, displays detailed table with entry/exit dates and hold periods
+        max_signals_display: Maximum number of signals to show in details table (default: 20)
         settings: Optional dict of strategy settings to display
         strategy_description: Optional description of strategy entry/exit rules
         width: Width of the output formatting
@@ -225,7 +278,7 @@ def print_summary(
             results_df,
             strategy_name="RSI Mean Reversion",
             ticker="AAPL",
-            show_signal_dates=True,
+            show_signal_details=True,
             settings={
                 'RSI Threshold': 30,
                 'Stop-loss': '-3.0%',
@@ -310,9 +363,9 @@ def print_summary(
     else:
         print(f"  Profit Factor:     ∞ (no losses)")
     if metrics['risk_reward'] != float('inf'):
-        print(f"  Risk/Reward:       {metrics['risk_reward']:.2f}:1")
+        print(f"  Risk/Reward:       1:{metrics['risk_reward']:.2f}")
     else:
-        print(f"  Risk/Reward:       ∞ (no losses)")
+        print(f"  Risk/Reward:       1:∞ (no losses)")
     print(f"  Expectancy ($100): ${metrics['expectancy']:+.2f}")
     print(f"  Sharpe-like:       {metrics['sharpe_like']:.2f}")
     if metrics['max_consec_losses'] > 0:
@@ -347,10 +400,13 @@ def print_summary(
             pct = (count / metrics['total_trades']) * 100
             print(f"  {label:14s} {count:4d}  ({pct:.1f}%)")
 
-    # Signal dates (optional)
-    if show_signal_dates and 'date' in results_df.columns:
+    # Signal dates/details (optional)
+    if show_signal_details and 'date' in results_df.columns and 'exit_day' in results_df.columns:
+        print(f"\nSIGNAL DETAILS")
+        print_signal_details_table(results_df, max_signals=max_signals_display)
+    elif show_signal_dates and 'date' in results_df.columns:
         print(f"\nSIGNAL DATES")
-        dates_str = format_signal_dates(results_df, max_dates=10)
+        dates_str = format_signal_dates(results_df, max_dates=100)
         print(f"  {dates_str}")
 
     print("=" * width + "\n")
@@ -434,9 +490,9 @@ def print_aggregate_summary(
     else:
         print(f"  Profit Factor:     ∞")
     if metrics['risk_reward'] != float('inf'):
-        print(f"  Risk/Reward:       {metrics['risk_reward']:.2f}:1")
+        print(f"  Risk/Reward:       1:{metrics['risk_reward']:.2f}")
     else:
-        print(f"  Risk/Reward:       ∞")
+        print(f"  Risk/Reward:       1:∞")
     print(f"  Expectancy ($100): ${metrics['expectancy']:+.2f}")
     print(f"  Sharpe-like:       {metrics['sharpe_like']:.2f}")
     print(f"  Total Return:      {metrics['total_return']:+.2f}%")

@@ -259,8 +259,8 @@ def calculate_adx(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
     true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
 
     # Calculate smoothed values using EMA
-    plus_dm_smooth = pd.Series(plus_dm).ewm(span=window, adjust=False).mean()
-    minus_dm_smooth = pd.Series(minus_dm).ewm(span=window, adjust=False).mean()
+    plus_dm_smooth = pd.Series(plus_dm, index=df.index).ewm(span=window, adjust=False).mean()
+    minus_dm_smooth = pd.Series(minus_dm, index=df.index).ewm(span=window, adjust=False).mean()
     tr_smooth = true_range.ewm(span=window, adjust=False).mean()
 
     # Calculate +DI and -DI
